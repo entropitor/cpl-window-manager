@@ -4,7 +4,7 @@ name = "cplwm-assignment"
 # You can change this field
 version = "0.1.0"
 # Fill in this field
-authors = ["Your Name <your.email@address>"]
+authors = ["Jens Claes <jens.claes@student.kuleuven.be>"]
 
 [dependencies]
 rustc-serialize = "0.3.*"
