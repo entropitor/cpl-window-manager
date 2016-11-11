@@ -100,6 +100,8 @@ pub struct FullscreenWM {
     pub windows: Vec<Window>,
     /// We need to know which size the fullscreen window must be.
     pub screen: Screen,
+    /// The index of the focused window (or None if no window is focussed)
+    pub focused_index: Option<usize>,
 }
 
 /// The errors that this window manager can return.
@@ -153,6 +155,7 @@ impl WindowManager for FullscreenWM {
         FullscreenWM {
             windows: Vec::new(),
             screen: screen,
+            focused_index: None,
         }
     }
 
@@ -166,9 +169,9 @@ impl WindowManager for FullscreenWM {
     /// The last window in the list is the focused one.
     ///
     /// Note that the `last` method of `Vec` returns an `Option`.
-    fn get_focused_window(&self) -> Option<Window> {
-        self.windows.last().map(|w| *w)
-    }
+    // fn get_focused_window(&self) -> Option<Window> {
+    //    self.windows.last().map(|w| *w)
+    //}
 
     /// To add a window, just push it onto the end the `windows` `Vec`.
     ///
@@ -181,6 +184,7 @@ impl WindowManager for FullscreenWM {
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
         if !self.is_managed(window_with_info.window) {
             self.windows.push(window_with_info.window);
+            self.focused_index = Some(self.windows.len()-1);
         }
         Ok(())
     }
@@ -195,6 +199,13 @@ impl WindowManager for FullscreenWM {
             None => Err(FullscreenWMError::UnknownWindow(window)),
             Some(i) => {
                 self.windows.remove(i);
+
+                if let Some(j) = self.focused_index {
+                    if i <= j {
+                        self.focused_index = Some(j-1);
+                    }
+                }
+
                 Ok(())
             }
         }
@@ -219,19 +230,23 @@ impl WindowManager for FullscreenWM {
     ///
     fn get_window_layout(&self) -> WindowLayout {
         let fullscreen_geometry = self.screen.to_geometry();
-        match self.windows.last() {
-            // If there is at least one window.
-            Some(w) => {
+        match self.focused_index {
+            Some(i) => {
+                let w = self.windows[i];
                 WindowLayout {
-                    // The last window is focused ...
-                    focused_window: Some(*w),
-                    // ... and should fill the screen. The other windows are
-                    // simply hidden.
-                    windows: vec![(*w, fullscreen_geometry)],
+                    focused_window: Some(w),
+                    windows: vec![(w, fullscreen_geometry)]
                 }
-            }
-            // Otherwise, return an empty WindowLayout
-            None => WindowLayout::new(),
+            },
+            None => {
+                match self.windows.last() {
+                    Some(w) => WindowLayout {
+                        focused_window: None,
+                        windows: vec![(*w, fullscreen_geometry)]
+                    },
+                    None => WindowLayout::new(),
+                }
+            },
         }
     }
 
@@ -247,7 +262,18 @@ impl WindowManager for FullscreenWM {
     /// You will probably have to change the code above (method
     /// implementations as well as the `FullscreenWM` struct) to achieve this.
     fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
-        unimplemented!()
+        match window {
+            None => self.focused_index = None,
+            Some(w) => {
+                if !self.is_managed(w) {
+                    return Err(FullscreenWMError::UnknownWindow(w));
+                }
+
+                self.focused_index = self.windows.iter().position(|w2| *w2 == w);
+            },
+        }
+
+        Ok(())
     }
 
     /// Try this yourself
@@ -255,7 +281,13 @@ impl WindowManager for FullscreenWM {
         // You will probably notice here that a `Vec` is not the ideal data
         // structure to implement this function. Feel free to replace the
         // `Vec` with another data structure.
-        unimplemented!()
+        self.focused_index = match self.focused_index {
+            None => self.windows.first().map(|w| 0),
+            Some(i) => match dir {
+                PrevOrNext::Prev => Some(i-1 % self.windows.len()),
+                PrevOrNext::Next => Some(i+1 % self.windows.len()),
+            },
+        }
     }
 
     /// Try this yourself
@@ -283,21 +315,24 @@ impl WindowManager for FullscreenWM {
 mod tests {
 
     // We have to import `FullscreenWM` from the super module.
-    use super::FullscreenWM;
+    pub use super::FullscreenWM;
     // We have to repeat the imports we did in the super module.
-    use cplwm_api::wm::WindowManager;
-    use cplwm_api::types::*;
+    pub use cplwm_api::wm::WindowManager;
+    pub use cplwm_api::types::*;
+    pub use cplwm_api::types::PrevOrNext::*;
+
+    // Import expectest names
+    pub use expectest::prelude::*;
 
     // We define a static variable for the screen we will use in the tests.
-    // You can just as well define it as a local variable in your tests.
-    static SCREEN: Screen = Screen {
+    pub static SCREEN: Screen = Screen {
         width: 800,
         height: 600,
     };
 
     // We define a static variable for the geometry of a fullscreen window.
     // Note that it matches the dimensions of `SCREEN`.
-    static SCREEN_GEOM: Geometry = Geometry {
+    pub static SCREEN_GEOM: Geometry = Geometry {
         x: 0,
         y: 0,
         width: 800,
@@ -306,79 +341,183 @@ mod tests {
 
     // We define a static variable for some random geometry that we will use
     // when adding windows to a window manager.
-    static SOME_GEOM: Geometry = Geometry {
+    pub static SOME_GEOM: Geometry = Geometry {
         x: 10,
         y: 10,
         width: 100,
         height: 100,
     };
 
+    describe! full_screen_wm {
+        before_each {
+            // Let's make a new `FullscreenWM` with `SCREEN` as screen.
+            let mut wm = FullscreenWM::new(SCREEN);
+        }
 
-    // Now let's write our test.
-    //
-    // Note that tests are annotated with `#[test]`, and cannot take arguments
-    // nor return anything.
-    #[test]
-    fn test_adding_and_removing_some_windows() {
-        // Let's make a new `FullscreenWM` with `SCREEN` as screen.
-        let mut wm = FullscreenWM::new(SCREEN);
+        it "should have an empty window layout initially" {
+            assert_eq!(WindowLayout::new(), wm.get_window_layout());
+        }
 
-        // Initially the window layout should be empty.
-        assert_eq!(WindowLayout::new(), wm.get_window_layout());
-        // `assert_eq!` is a macro that will check that the second argument,
-        // the actual value, matches first value, the expected value.
+        it "should add a window correctly" {
+            wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
 
-        // Let's add a window
-        wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-        // Because `add_window` returns a `Result`, we use `unwrap`, which
-        // tries to extract the `Ok` value from the result, but will panic
-        // (crash) when it is an `Err`. You must be very careful when using
-        // `unwrap` in your code. Here we can use it because we know for sure
-        // that an `Err` won't be returned, and even if that were the case,
-        // the panic will simply cause the test to fail.
+            // The window should now be managed by the WM
+            assert!(wm.is_managed(1));
+            // and be present in the `Vec` of windows.
+            assert_eq!(vec![1], wm.get_windows());
+            // According to the window layout
+            let wl1 = wm.get_window_layout();
+            // it should be focused
+            assert_eq!(Some(1), wl1.focused_window);
+            // and fullscreen.
+            assert_eq!(vec![(1, SCREEN_GEOM)], wl1.windows);
+        }
 
-        // The window should now be managed by the WM
-        assert!(wm.is_managed(1));
-        // and be present in the `Vec` of windows.
-        assert_eq!(vec![1], wm.get_windows());
-        // According to the window layout
-        let wl1 = wm.get_window_layout();
-        // it should be focused
-        assert_eq!(Some(1), wl1.focused_window);
-        // and fullscreen.
-        assert_eq!(vec![(1, SCREEN_GEOM)], wl1.windows);
+        it "should add 2 windows correctly" {
+            wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
 
-        // Let's add another window.
-        wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
-        // It should now be managed by the WM.
-        assert!(wm.is_managed(2));
-        // The `Vec` of windows should now contain both windows 1 and 2.
-        assert_eq!(vec![1, 2], wm.get_windows());
-        // According to the window layout
-        let wl2 = wm.get_window_layout();
-        // window 2 should be focused
-        assert_eq!(Some(2), wl2.focused_window);
-        // and fullscreen.
-        assert_eq!(vec![(2, SCREEN_GEOM)], wl2.windows);
+            wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
 
-        // Now let's remove window 2
-        wm.remove_window(2).unwrap();
-        // It should no longer be managed by the WM.
-        assert!(!wm.is_managed(2));
-        // The `Vec` of windows should now just contain window 1.
-        assert_eq!(vec![1], wm.get_windows());
-        // According to the window layout
-        let wl3 = wm.get_window_layout();
-        // window 1 should be focused again
-        assert_eq!(Some(1), wl3.focused_window);
-        // and fullscreen.
-        assert_eq!(vec![(1, SCREEN_GEOM)], wl3.windows);
+            // It should now be managed by the WM.
+            assert!(wm.is_managed(2));
+            // The `Vec` of windows should now contain both windows 1 and 2.
+            assert_eq!(vec![1, 2], wm.get_windows());
+            // According to the window layout
+            let wl2 = wm.get_window_layout();
+            // window 2 should be focused
+            assert_eq!(Some(2), wl2.focused_window);
+            // and fullscreen.
+            assert_eq!(vec![(2, SCREEN_GEOM)], wl2.windows);
+        }
 
+        describe! remove_window {
+            it "should remove a window correctly" {
+                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
 
-        // To run these tests, run the command `cargo test` in the `solution`
-        // directory.
-        //
-        // To learn more about testing, check the Testing chapter of the Rust
-        // Book: https://doc.rust-lang.org/book/testing.html
+                wm.remove_window(2).unwrap();
+
+                // It should no longer be managed by the WM.
+                assert!(!wm.is_managed(2));
+                // The `Vec` of windows should now just contain window 1.
+                assert_eq!(vec![1], wm.get_windows());
+                // According to the window layout
+                let wl3 = wm.get_window_layout();
+                // window 1 should be focused again
+                assert_eq!(Some(1), wl3.focused_window);
+                // and fullscreen.
+                assert_eq!(vec![(1, SCREEN_GEOM)], wl3.windows);
+            }
+
+            it "should not lose focus if we remove another window" {
+                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, SOME_GEOM)).unwrap();
+
+                wm.remove_window(2).unwrap();
+
+                assert!(!wm.is_managed(2));
+                assert_eq!(vec![1, 3], wm.get_windows());
+                let wl3 = wm.get_window_layout();
+                assert_eq!(Some(3), wl3.focused_window);
+                assert_eq!(vec![(3, SCREEN_GEOM)], wl3.windows);
+            }
+
+            it "should do be in initial state if we remove all windows" {
+                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+
+                wm.remove_window(1).unwrap();
+                wm.remove_window(2).unwrap();
+
+                assert!(!wm.is_managed(1));
+                assert!(!wm.is_managed(2));
+                expect(wm.get_windows().len()).to(be_equal_to(0));
+                let wl = wm.get_window_layout();
+                assert_eq!(None, wl.focused_window);
+                expect(wl.windows.len()).to(be_equal_to(0));
+            }
+        }
+
+        describe! focus_window {
+            before_each {
+                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+            }
+
+            it "should focus the correct window" {
+                wm.focus_window(Some(1)).unwrap();
+
+                assert_eq!(Some(1), wm.get_window_layout().focused_window);
+            }
+
+            it "should keep the focus if already focussed" {
+                wm.focus_window(Some(2)).unwrap();
+
+                assert_eq!(Some(2), wm.get_window_layout().focused_window);
+            }
+
+            it "should lose the focus if passed no window" {
+                wm.focus_window(None).unwrap();
+
+                assert_eq!(None, wm.get_window_layout().focused_window);
+            }
+
+            it "should throw error on unknown window" {
+                expect!(wm.focus_window(Some(3))).to(be_err());
+            }
+        }
+
+        describe! cycle_focus {
+            before_each {
+                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(4, SOME_GEOM)).unwrap();
+            }
+
+            it "should cycle in forward direction" {
+                wm.cycle_focus(Next);
+
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(1)));
+            }
+
+            it "should work in backward direction" {
+                wm.cycle_focus(Prev);
+
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+            }
+
+            it "should cycle in backward direction" {
+                wm.cycle_focus(Prev);
+                wm.cycle_focus(Prev);
+                wm.cycle_focus(Prev);
+                wm.cycle_focus(Prev);
+
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(4)));
+            }
+
+            it "should not do anything if cycling back an forth" {
+                wm.cycle_focus(Prev);
+                wm.cycle_focus(Next);
+
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(4)));
+            }
+
+            it "should focus on a window if none was selected" {
+                wm.focus_window(None);
+
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(0)));
+            }
+
+            it "should not focus on a window if there are none" {
+                wm.remove_window(1);
+                wm.remove_window(2);
+                wm.remove_window(3);
+                wm.remove_window(4);
+
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(0)));
+            }
+        }
     }
 }

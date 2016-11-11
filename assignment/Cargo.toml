@@ -11,6 +11,10 @@ rustc-serialize = "0.3.*"
 # You are free to add additional dependencies to your project. But this is
 # certainly not required.
 
+[dev-dependencies]
+stainless = "0.1.9"
+expectest = "0.6.0"
+
 [dependencies.cplwm-api]
 path = "../api"
 version = "*"

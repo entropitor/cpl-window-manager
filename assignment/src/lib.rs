@@ -52,6 +52,9 @@
 
 // This line forces you to write documentation for all important things.
 #![deny(missing_docs)]
+#![feature(test)]
+#![feature(plugin)]
+#![cfg_attr(test, plugin(stainless))]
 // Note that the documentation starts with three slashes instead of two!
 // See https://doc.rust-lang.org/book/documentation.html
 
@@ -64,7 +67,10 @@ extern crate cplwm_api;
 extern crate rustc_serialize;
 
 // Add any dependencies below:
-
+extern crate test;
+#[cfg(test)]
+#[macro_use(expect)]
+extern crate expectest;
 
 
 // Declare the modules of which this project consists:
