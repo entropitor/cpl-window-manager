@@ -14,7 +14,9 @@
 //!
 //! I used an index to track which is the focussed window.
 //!
-use cplwm_api::types::{PrevOrNext, FloatOrTile, Geometry, Screen, Window, WindowLayout, WindowWithInfo};
+use cplwm_api::types::{PrevOrNext, Geometry, Screen, Window, WindowLayout, WindowWithInfo};
+use cplwm_api::types::PrevOrNext::*;
+pub use cplwm_api::types::FloatOrTile::*;
 use cplwm_api::wm::WindowManager;
 
 use error::WMError;
@@ -61,40 +63,29 @@ impl WindowManager for FullscreenWM {
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
-        match self.windows.iter().position(|w| *w == window) {
-            None => Err(UnknownWindow(window)),
-            Some(i) => {
+        self.windows.iter().position(|w| *w == window)
+            .ok_or(UnknownWindow(window))
+            .map(|i| {
                 self.windows.remove(i);
 
+                // if there is no window left, no window has focus.
                 if self.windows.len() == 0 {
-                    // if there is no window left, no window has focus.
                     self.focused_index = None;
                 } else if let Some(j) = self.focused_index {
                     if i <= j {
                         // Update the index of the focused window to keep the same window in focus
-                        self.cycle_focus(PrevOrNext::Prev);
+                        self.cycle_focus(Prev);
                     }
-                }
-
-                Ok(())
-            }
-        }
+                };
+            })
     }
 
     fn get_window_layout(&self) -> WindowLayout {
-        let fullscreen_geometry = self.screen.to_geometry();
-
         // Only the focused window can be visible
-        match self.focused_index {
-            Some(i) => {
-                let w = self.windows[i];
-                WindowLayout {
-                    focused_window: Some(w),
-                    windows: vec![(w, fullscreen_geometry)],
-                }
-            }
-            None => WindowLayout::new(),
-        }
+        self.focused_index.map(|i| self.windows[i]).map_or(WindowLayout::new(), |w| WindowLayout {
+            focused_window: Some(w),
+            windows: vec![(w, self.screen.to_geometry())],
+        })
     }
 
     fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
@@ -121,41 +112,25 @@ impl WindowManager for FullscreenWM {
             },
             Some(i) => {
                 match dir {
-                    PrevOrNext::Prev => Some((i + self.windows.len() - 1) % self.windows.len()),
-                    PrevOrNext::Next => Some((i + 1) % self.windows.len()),
+                    Prev => Some((i + self.windows.len() - 1) % self.windows.len()),
+                    Next => Some((i + 1) % self.windows.len()),
                 }
             }
         }
     }
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
-        match self.windows.iter().position(|w| *w == window) {
-            None => {
-                // Return error if the window is not managed by us
-                return Err(UnknownWindow(window))
-            }
-            Some(i) => {
-                // If it's in focus, return fullscreen window info
-                if let Some(j) = self.focused_index {
-                    if i == j {
-                        return Ok(WindowWithInfo {
-                            window: window,
-                            geometry: self.screen.to_geometry(),
-                            float_or_tile: FloatOrTile::Tile,
-                            fullscreen: true
-                        });
-                    }
-                }
-
-                // Otherwise return "hidden" window info
-                Ok(WindowWithInfo {
-                    window: window,
-                    geometry: Geometry { x: 0, y: 0, height: 0, width: 0 },
-                    float_or_tile: FloatOrTile::Tile,
-                    fullscreen: false
-                })
-            }
-        }
+        self.windows.iter().position(|w| *w == window)
+            // Return error if the window is not managed by us
+            .ok_or(UnknownWindow(window))
+            // Check if it's in focus
+            .map(|i| self.focused_index.map_or(false, |j| i == j))
+            .map(|is_focused| WindowWithInfo {
+                window: window,
+                geometry: if is_focused {self.screen.to_geometry()} else {Geometry {x: 0, y:0, height: 0, width: 0}},
+                float_or_tile: Tile,
+                fullscreen: is_focused
+            })
     }
 
     fn get_screen(&self) -> Screen {
@@ -375,7 +350,7 @@ mod tests {
                 expect!(info).to(be_equal_to(WindowWithInfo {
                     window: 2,
                     geometry: screen_geom,
-                    float_or_tile: FloatOrTile::Tile,
+                    float_or_tile: Tile,
                     fullscreen: true,
                 }));
             }
@@ -386,7 +361,7 @@ mod tests {
                 expect!(info).to(be_equal_to(WindowWithInfo {
                     window: 1,
                     geometry: empty_geom,
-                    float_or_tile: FloatOrTile::Tile,
+                    float_or_tile: Tile,
                     fullscreen: false,
                 }));
             }
@@ -399,7 +374,7 @@ mod tests {
                 expect!(info).to(be_equal_to(WindowWithInfo {
                     window: 2,
                     geometry: empty_geom,
-                    float_or_tile: FloatOrTile::Tile,
+                    float_or_tile: Tile,
                     fullscreen: false,
                 }));
             }
