@@ -73,12 +73,14 @@ impl WindowManager for FullscreenWM {
     }
 
     fn get_windows(&self) -> Vec<Window> {
+        // Return a clone so external users can't access the original Vector
         self.windows.clone()
     }
 
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
         if !self.is_managed(window_with_info.window) {
             self.windows.push(window_with_info.window);
+            // Focus on this new window
             self.focused_index = Some(self.windows.len() - 1);
         }
         Ok(())
@@ -91,9 +93,11 @@ impl WindowManager for FullscreenWM {
                 self.windows.remove(i);
 
                 if self.windows.len() == 0 {
+                    // if there is no window left, no window has focus.
                     self.focused_index = None;
                 } else if let Some(j) = self.focused_index {
                     if i <= j {
+                        // Update the index of the focused window to keep the same window in focus
                         self.cycle_focus(PrevOrNext::Prev);
                     }
                 }
@@ -105,6 +109,8 @@ impl WindowManager for FullscreenWM {
 
     fn get_window_layout(&self) -> WindowLayout {
         let fullscreen_geometry = self.screen.to_geometry();
+
+        // Only the focused window can be visible
         match self.focused_index {
             Some(i) => {
                 let w = self.windows[i];
@@ -125,6 +131,7 @@ impl WindowManager for FullscreenWM {
                     return Err(FullscreenWMError::UnknownWindow(w));
                 }
 
+                // Set focused index to the position of the window passed along
                 self.focused_index = self.windows.iter().position(|w2| *w2 == w);
             }
         }
@@ -134,7 +141,10 @@ impl WindowManager for FullscreenWM {
 
     fn cycle_focus(&mut self, dir: PrevOrNext) {
         self.focused_index = match self.focused_index {
-            None => self.windows.first().map(|_w| 0),
+            None => {
+                // Set focused_index to 0 unless there are no windows
+                self.windows.first().map(|_w| 0)
+            },
             Some(i) => {
                 match dir {
                     PrevOrNext::Prev => Some((i + self.windows.len() - 1) % self.windows.len()),
@@ -147,9 +157,11 @@ impl WindowManager for FullscreenWM {
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
         match self.windows.iter().position(|w| *w == window) {
             None => {
+                // Return error if the window is not managed by us
                 return Err(FullscreenWMError::UnknownWindow(window))
             }
             Some(i) => {
+                // If it's in focus, return fullscreen window info
                 if let Some(j) = self.focused_index {
                     if i == j {
                         return Ok(WindowWithInfo {
@@ -161,6 +173,7 @@ impl WindowManager for FullscreenWM {
                     }
                 }
 
+                // Otherwise return "hidden" window info
                 Ok(WindowWithInfo {
                     window: window,
                     geometry: Geometry { x: 0, y: 0, height: 0, width: 0 },
