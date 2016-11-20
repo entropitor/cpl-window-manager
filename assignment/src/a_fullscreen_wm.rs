@@ -282,7 +282,6 @@ impl WindowManager for FullscreenWM {
         }
     }
 
-    /// Try this yourself
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
         match self.windows.iter().position(|w| *w == window) {
             None => {
@@ -310,14 +309,16 @@ impl WindowManager for FullscreenWM {
         }
     }
 
-    /// Try this yourself
     fn get_screen(&self) -> Screen {
-        unimplemented!()
+        self.screen
     }
 
-    /// Try this yourself
     fn resize_screen(&mut self, screen: Screen) {
-        unimplemented!()
+        self.screen = screen;
+    }
+
+    fn get_focused_window(&self) -> Option<Window> {
+        self.focused_index.map(|i| self.windows[i])
     }
 }
 
@@ -587,6 +588,32 @@ mod tests {
                 let info = wm.get_window_info(3);
 
                 expect(info).to(be_err());
+            }
+        }
+
+        describe! screen {
+            before_each {
+                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+
+                let new_screen = Screen {
+                    width: 200,
+                    height: 200
+                };
+            }
+            it "should return the default screen"{
+                expect(wm.get_screen()).to(be_equal_to(SCREEN));
+            }
+
+            it "should return the new screen if one is provided" {
+                wm.resize_screen(new_screen);
+
+                expect(wm.get_screen()).to(be_equal_to(new_screen));
+            }
+
+            it "should change the windowlayout of the visible screen if a new screen is provided" {
+                wm.resize_screen(new_screen);
+
+                expect(wm.get_window_layout().windows.first().unwrap().1).to(be_equal_to(new_screen.to_geometry()));
             }
         }
     }
