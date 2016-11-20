@@ -1,3 +1,5 @@
+//! This module provides the possible errors for our window managers
+
 use std::error;
 use std::fmt;
 
