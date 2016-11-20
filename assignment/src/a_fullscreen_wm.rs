@@ -176,8 +176,8 @@ impl WindowManager for FullscreenWM {
 #[allow(unused_mut)]
 #[allow(unused_variables)]
 mod tests {
+    pub use super::*;
 
-    pub use super::FullscreenWM;
     pub use cplwm_api::wm::WindowManager;
     pub use cplwm_api::types::*;
     pub use cplwm_api::types::PrevOrNext::*;
@@ -185,61 +185,57 @@ mod tests {
     // Import expectest names
     pub use expectest::prelude::*;
 
-    pub static SCREEN: Screen = Screen {
-        width: 800,
-        height: 600,
-    };
-
-    pub static SCREEN_GEOM: Geometry = Geometry {
-        x: 0,
-        y: 0,
-        width: 800,
-        height: 600,
-    };
-
-    pub static SOME_GEOM: Geometry = Geometry {
-        x: 10,
-        y: 10,
-        width: 100,
-        height: 100,
-    };
-
     describe! full_screen_wm {
         before_each {
-            let mut wm = FullscreenWM::new(SCREEN);
+            let screen: Screen = Screen {
+                width: 800,
+                height: 600,
+            };
+            let screen_geom = screen.to_geometry();
+
+            let some_geom: Geometry = Geometry {
+                x: 10,
+                y: 10,
+                width: 100,
+                height: 100,
+            };
+
+            let mut wm = FullscreenWM::new(screen);
         }
 
         it "should have an empty window layout initially" {
             expect!(wm.get_window_layout()).to(be_equal_to(WindowLayout::new()));
         }
 
-        it "should add a window correctly" {
-            wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+        describe! add_window {
+            it "should add a window correctly" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
 
-            let wl = wm.get_window_layout();
+                let wl = wm.get_window_layout();
 
-            expect!(wm.is_managed(1)).to(be_true());
-            expect!(wm.get_windows()).to(be_equal_to(vec![1]));
-            expect!(wl.focused_window).to(be_equal_to(Some(1)));
-            expect!(wl.windows).to(be_equal_to(vec![(1, SCREEN_GEOM)]));
-        }
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+            }
 
-        it "should add 2 windows correctly" {
-            wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-            wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+            it "should add 2 windows correctly" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
 
-            let wl = wm.get_window_layout();
+                let wl = wm.get_window_layout();
 
-            expect!(wm.is_managed(2)).to(be_true());
-            expect!(wm.get_windows()).to(be_equal_to(vec![1, 2]));
-            expect!(wl.focused_window).to(be_equal_to(Some(2)));
-            expect!(wl.windows).to(be_equal_to(vec![(2, SCREEN_GEOM)]));
+                expect!(wm.is_managed(2)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1, 2]));
+                expect!(wl.focused_window).to(be_equal_to(Some(2)));
+                expect!(wl.windows).to(be_equal_to(vec![(2, screen_geom)]));
+            }
         }
 
         describe! remove_window {
             it "should remove a window correctly" {
-                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
 
                 wm.remove_window(2).unwrap();
 
@@ -247,26 +243,26 @@ mod tests {
                 expect!(wm.is_managed(2)).to(be_false());
                 expect!(wm.get_windows()).to(be_equal_to(vec![1]));
                 expect!(wl.focused_window).to(be_equal_to(Some(1)));
-                expect!(wl.windows).to(be_equal_to(vec![(1, SCREEN_GEOM)]));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
             }
 
             it "should not lose focus if we remove another window" {
-                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(3, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
 
                 wm.remove_window(2).unwrap();
 
                 expect!(wm.is_managed(2)).to(be_false());
                 expect!(wm.get_windows()).to(be_equal_to(vec![1, 3]));
-                let wl3 = wm.get_window_layout();
-                expect!(wl3.focused_window).to(be_equal_to(Some(3)));
-                expect!(wl3.windows).to(be_equal_to(vec![(3, SCREEN_GEOM)]));
+                let wl = wm.get_window_layout();
+                expect!(wl.focused_window).to(be_equal_to(Some(3)));
+                expect!(wl.windows).to(be_equal_to(vec![(3, screen_geom)]));
             }
 
             it "should do be in initial state if we remove all windows" {
-                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
 
                 wm.remove_window(1).unwrap();
                 wm.remove_window(2).unwrap();
@@ -274,16 +270,14 @@ mod tests {
                 expect!(wm.is_managed(1)).to(be_false());
                 expect!(wm.is_managed(2)).to(be_false());
                 expect(wm.get_windows().len()).to(be_equal_to(0));
-                let wl = wm.get_window_layout();
-                expect!(wl.focused_window).to(be_equal_to(None));
-                expect(wl.windows.len()).to(be_equal_to(0));
+                expect!(wm.get_window_layout()).to(be_equal_to(WindowLayout::new()));
             }
         }
 
         describe! focus_window {
             before_each {
-                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
             }
 
             it "should focus the correct window" {
@@ -312,10 +306,10 @@ mod tests {
 
         describe! cycle_focus {
             before_each {
-                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(3, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(4, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(4, some_geom)).unwrap();
             }
 
             it "should cycle in forward direction" {
@@ -364,8 +358,8 @@ mod tests {
 
         describe! get_window_info {
             before_each {
-                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
-                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
 
                 let empty_geom = Geometry {
                     x: 0, y: 0, width: 0, height: 0,
@@ -377,7 +371,7 @@ mod tests {
 
                 expect!(info).to(be_equal_to(WindowWithInfo {
                     window: 2,
-                    geometry: SCREEN_GEOM,
+                    geometry: screen_geom,
                     float_or_tile: FloatOrTile::Tile,
                     fullscreen: true,
                 }));
@@ -416,7 +410,7 @@ mod tests {
 
         describe! screen {
             before_each {
-                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
 
                 let new_screen = Screen {
                     width: 200,
@@ -424,7 +418,7 @@ mod tests {
                 };
             }
             it "should return the default screen"{
-                expect(wm.get_screen()).to(be_equal_to(SCREEN));
+                expect(wm.get_screen()).to(be_equal_to(screen));
             }
 
             it "should return the new screen if one is provided" {
