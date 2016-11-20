@@ -40,7 +40,7 @@ use std::fmt;
 
 // Import some types and the WindowManager trait from the cplwm_api crate
 // (defined in the api folder).
-use cplwm_api::types::{PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
+use cplwm_api::types::{PrevOrNext, FloatOrTile, Geometry, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::wm::WindowManager;
 
 /// You are free to choose the name for your window manager. As we will use
@@ -284,7 +284,30 @@ impl WindowManager for FullscreenWM {
 
     /// Try this yourself
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
-        unimplemented!()
+        match self.windows.iter().position(|w| *w == window) {
+            None => {
+                return Err(FullscreenWMError::UnknownWindow(window))
+            }
+            Some(i) => {
+                if let Some(j) = self.focused_index {
+                    if i == j {
+                        return Ok(WindowWithInfo {
+                            window: window,
+                            geometry: self.screen.to_geometry(),
+                            float_or_tile: FloatOrTile::Tile,
+                            fullscreen: true
+                        });
+                    }
+                }
+
+                Ok(WindowWithInfo {
+                    window: window,
+                    geometry: Geometry { x: 0, y: 0, height: 0, width: 0 },
+                    float_or_tile: FloatOrTile::Tile,
+                    fullscreen: false
+                })
+            }
+        }
     }
 
     /// Try this yourself
@@ -512,6 +535,58 @@ mod tests {
                 wm.remove_window(4);
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
+            }
+        }
+
+        describe! get_window_info {
+            before_each {
+                wm.add_window(WindowWithInfo::new_tiled(1, SOME_GEOM)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, SOME_GEOM)).unwrap();
+
+                let empty_geom = Geometry {
+                    x: 0, y: 0, width: 0, height: 0,
+                };
+            }
+
+            it "should work for the visible window" {
+                let info = wm.get_window_info(2).unwrap();
+
+                expect!(info).to(be_equal_to(WindowWithInfo {
+                    window: 2,
+                    geometry: SCREEN_GEOM,
+                    float_or_tile: FloatOrTile::Tile,
+                    fullscreen: true,
+                }));
+            }
+
+            it "should work for a hidden window" {
+                let info = wm.get_window_info(1).unwrap();
+
+                expect!(info).to(be_equal_to(WindowWithInfo {
+                    window: 1,
+                    geometry: empty_geom,
+                    float_or_tile: FloatOrTile::Tile,
+                    fullscreen: false,
+                }));
+            }
+
+            it "should work if there is no visible window" {
+                wm.focus_window(None);
+
+                let info = wm.get_window_info(2).unwrap();
+
+                expect!(info).to(be_equal_to(WindowWithInfo {
+                    window: 2,
+                    geometry: empty_geom,
+                    float_or_tile: FloatOrTile::Tile,
+                    fullscreen: false,
+                }));
+            }
+
+            it "should error if the window is not managed by the window manager" {
+                let info = wm.get_window_info(3);
+
+                expect(info).to(be_err());
             }
         }
     }
