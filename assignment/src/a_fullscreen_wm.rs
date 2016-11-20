@@ -14,17 +14,16 @@
 //!
 //! I used an index to track which is the focussed window.
 //!
-
-use std::error;
-use std::fmt;
-
 use cplwm_api::types::{PrevOrNext, FloatOrTile, Geometry, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::wm::WindowManager;
+
+use error::WMError;
+use error::WMError::*;
 
 /// Type alias for automated tests
 pub type WMName = FullscreenWM;
 
-/// Main struct
+/// Main struct of the window manager
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 pub struct FullscreenWM {
     /// A vector of windows, the first one is on the bottom, the last one is on top
@@ -35,34 +34,9 @@ pub struct FullscreenWM {
     pub focused_index: Option<usize>,
 }
 
-/// The errors that this window manager can return.
-///
-/// [Error]: ../../cplwm_api/wm/trait.WindowManager.html#associatedtype.Error
-#[derive(Debug)]
-pub enum FullscreenWMError {
-    /// This window is not known by the window manager.
-    UnknownWindow(Window),
-}
-
-impl fmt::Display for FullscreenWMError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            FullscreenWMError::UnknownWindow(ref window) => write!(f, "Unknown window: {}", window),
-        }
-    }
-}
-
-impl error::Error for FullscreenWMError {
-    fn description(&self) -> &'static str {
-        match *self {
-            FullscreenWMError::UnknownWindow(_) => "Unknown window",
-        }
-    }
-}
-
 impl WindowManager for FullscreenWM {
-    /// We use `FullscreenWMError` as our `Error` type.
-    type Error = FullscreenWMError;
+    /// We use `WMError` as our `Error` type.
+    type Error = WMError;
 
     fn new(screen: Screen) -> FullscreenWM {
         FullscreenWM {
@@ -88,7 +62,7 @@ impl WindowManager for FullscreenWM {
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
         match self.windows.iter().position(|w| *w == window) {
-            None => Err(FullscreenWMError::UnknownWindow(window)),
+            None => Err(UnknownWindow(window)),
             Some(i) => {
                 self.windows.remove(i);
 
@@ -128,7 +102,7 @@ impl WindowManager for FullscreenWM {
             None => self.focused_index = None,
             Some(w) => {
                 if !self.is_managed(w) {
-                    return Err(FullscreenWMError::UnknownWindow(w));
+                    return Err(UnknownWindow(w));
                 }
 
                 // Set focused index to the position of the window passed along
@@ -158,7 +132,7 @@ impl WindowManager for FullscreenWM {
         match self.windows.iter().position(|w| *w == window) {
             None => {
                 // Return error if the window is not managed by us
-                return Err(FullscreenWMError::UnknownWindow(window))
+                return Err(UnknownWindow(window))
             }
             Some(i) => {
                 // If it's in focus, return fullscreen window info
