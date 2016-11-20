@@ -171,8 +171,7 @@ impl WindowManager for FullscreenWM {
     /// Note that the `last` method of `Vec` returns an `Option`.
     // fn get_focused_window(&self) -> Option<Window> {
     //    self.windows.last().map(|w| *w)
-    //}
-
+    // }
     /// To add a window, just push it onto the end the `windows` `Vec`.
     ///
     /// We could choose to return an error when the window is already managed
@@ -184,7 +183,7 @@ impl WindowManager for FullscreenWM {
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
         if !self.is_managed(window_with_info.window) {
             self.windows.push(window_with_info.window);
-            self.focused_index = Some(self.windows.len()-1);
+            self.focused_index = Some(self.windows.len() - 1);
         }
         Ok(())
     }
@@ -200,9 +199,11 @@ impl WindowManager for FullscreenWM {
             Some(i) => {
                 self.windows.remove(i);
 
-                if let Some(j) = self.focused_index {
+                if self.windows.len() == 0 {
+                    self.focused_index = None;
+                } else if let Some(j) = self.focused_index {
                     if i <= j {
-                        self.focused_index = Some(j-1);
+                        self.cycle_focus(PrevOrNext::Prev);
                     }
                 }
 
@@ -235,18 +236,10 @@ impl WindowManager for FullscreenWM {
                 let w = self.windows[i];
                 WindowLayout {
                     focused_window: Some(w),
-                    windows: vec![(w, fullscreen_geometry)]
+                    windows: vec![(w, fullscreen_geometry)],
                 }
-            },
-            None => {
-                match self.windows.last() {
-                    Some(w) => WindowLayout {
-                        focused_window: None,
-                        windows: vec![(*w, fullscreen_geometry)]
-                    },
-                    None => WindowLayout::new(),
-                }
-            },
+            }
+            None => WindowLayout::new(),
         }
     }
 
@@ -270,7 +263,7 @@ impl WindowManager for FullscreenWM {
                 }
 
                 self.focused_index = self.windows.iter().position(|w2| *w2 == w);
-            },
+            }
         }
 
         Ok(())
@@ -278,15 +271,14 @@ impl WindowManager for FullscreenWM {
 
     /// Try this yourself
     fn cycle_focus(&mut self, dir: PrevOrNext) {
-        // You will probably notice here that a `Vec` is not the ideal data
-        // structure to implement this function. Feel free to replace the
-        // `Vec` with another data structure.
         self.focused_index = match self.focused_index {
             None => self.windows.first().map(|w| 0),
-            Some(i) => match dir {
-                PrevOrNext::Prev => Some(i-1 % self.windows.len()),
-                PrevOrNext::Next => Some(i+1 % self.windows.len()),
-            },
+            Some(i) => {
+                match dir {
+                    PrevOrNext::Prev => Some((i + self.windows.len() - 1) % self.windows.len()),
+                    PrevOrNext::Next => Some((i + 1) % self.windows.len()),
+                }
+            }
         }
     }
 
@@ -312,6 +304,8 @@ impl WindowManager for FullscreenWM {
 // The `#[cfg(test)]` annotation means that this code is only compiled when
 // we're testing the code.
 #[cfg(test)]
+#[allow(unused_must_use)]
+#[allow(unused_mut)]
 mod tests {
 
     // We have to import `FullscreenWM` from the super module.
@@ -461,6 +455,7 @@ mod tests {
                 wm.focus_window(None).unwrap();
 
                 assert_eq!(None, wm.get_window_layout().focused_window);
+                assert_eq!(0, wm.get_window_layout().windows.len());
             }
 
             it "should throw error on unknown window" {
@@ -504,10 +499,10 @@ mod tests {
                 expect!(wm.get_focused_window()).to(be_equal_to(Some(4)));
             }
 
-            it "should focus on a window if none was selected" {
+            it "should not focus on a window if none was selected" {
                 wm.focus_window(None);
 
-                expect!(wm.get_focused_window()).to(be_equal_to(Some(0)));
+                expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
             it "should not focus on a window if there are none" {
@@ -516,7 +511,7 @@ mod tests {
                 wm.remove_window(3);
                 wm.remove_window(4);
 
-                expect!(wm.get_focused_window()).to(be_equal_to(Some(0)));
+                expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
         }
     }
