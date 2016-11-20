@@ -42,16 +42,19 @@
 //! 1.12.1, you don't have to do anything. Otherwise, replace the version
 //! below with the output of `rustc --version`.
 //!
-//! VERSION: rustc 1.12.1 (d4f39402a 2016-10-19)
+//! VERSION: rustc 1.14.0-nightly (cae6ab1c4 2016-11-05)
 //!
 //! If you are using a nightly as opposed to a stable version of Rust, explain
 //! why below:
 //!
-//! ...
+//! The crate stainless (used for testing) required a nightly build. I wanted to write good unit tests and I found stainless to be a good crate to do so. Unfortunately it's not supported yet in the stable version of rust.
 //!
 
 // This line forces you to write documentation for all important things.
 #![deny(missing_docs)]
+#![feature(test)]
+#![feature(plugin)]
+#![cfg_attr(test, plugin(stainless))]
 // Note that the documentation starts with three slashes instead of two!
 // See https://doc.rust-lang.org/book/documentation.html
 
@@ -64,7 +67,10 @@ extern crate cplwm_api;
 extern crate rustc_serialize;
 
 // Add any dependencies below:
-
+extern crate test;
+#[cfg(test)]
+#[macro_use(expect)]
+extern crate expectest;
 
 
 // Declare the modules of which this project consists:
