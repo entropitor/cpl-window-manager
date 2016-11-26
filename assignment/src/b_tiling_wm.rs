@@ -22,7 +22,7 @@
 //!
 //! COMMENTS:
 //!
-//! ...
+//! A lot of code (+ tests) were copied from assignment a
 //!
 
 use cplwm_api::types::{PrevOrNext, Geometry, Screen, Window, WindowLayout, WindowWithInfo};
@@ -45,6 +45,43 @@ pub struct TilingWM {
     pub screen: Screen,
     /// The index of the focused window (or None if no window is focussed)
     pub focused_index: Option<usize>,
+}
+
+fn get_geom(screen: Screen, i: usize, n: usize) -> Geometry {
+    if i == 0 {
+        // the master window
+        get_master_geom(screen, n)
+    } else {
+        // a slave window
+        get_slave_geom(screen, i-1, n-1)
+    }
+}
+
+/// Return the geometry for the master window with n windows on the given screen
+fn get_master_geom(screen: Screen, n: usize) -> Geometry {
+    if n > 1 {
+        // There are slaves
+        Geometry {
+            x: 0,
+            y: 0,
+            width: (screen.width / 2) as u32,
+            height: screen.height
+        }
+    } else {
+        screen.to_geometry()
+    }
+}
+/// Return the geometry for the i-th slave (of n slaves) on the given screen
+fn get_slave_geom(screen: Screen, i: usize, n: usize) -> Geometry {
+    let nn = n as u32;
+    let ii = i as u32;
+
+    Geometry {
+        x: (screen.width / 2) as i32,
+        y: ((screen.height / nn) * ii) as i32,
+        width: screen.width / 2,
+        height: (screen.height / nn) as u32
+    }
 }
 
 impl WindowManager for TilingWM {
@@ -94,10 +131,17 @@ impl WindowManager for TilingWM {
 
     fn get_window_layout(&self) -> WindowLayout {
         // Only the focused window can be visible
-        self.focused_index.map(|i| self.windows[i]).map_or(WindowLayout::new(), |w| WindowLayout {
-            focused_window: Some(w),
-            windows: vec![(w, self.screen.to_geometry())],
-        })
+        if self.windows.len() == 0 {
+            WindowLayout::new()
+        } else {
+            WindowLayout {
+                focused_window: self.focused_index.map(|i| self.windows[i]),
+                windows: self.windows.iter()
+                    .enumerate()
+                    .map(|(i, w)| (*w, get_geom(self.screen, i, self.windows.len())))
+                    .collect()
+            }
+        }
     }
 
     fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
@@ -135,13 +179,12 @@ impl WindowManager for TilingWM {
         self.windows.iter().position(|w| *w == window)
             // Return error if the window is not managed by us
             .ok_or(UnknownWindow(window))
-            // Check if it's in focus
-            .map(|i| self.focused_index.map_or(false, |j| i == j))
-            .map(|is_focused| WindowWithInfo {
+            .map(|i| get_geom(self.screen, i, self.windows.len()))
+            .map(|geom| WindowWithInfo {
                 window: window,
-                geometry: if is_focused {self.screen.to_geometry()} else {Geometry {x: 0, y:0, height: 0, width: 0}},
+                geometry: geom,
                 float_or_tile: Tile,
-                fullscreen: is_focused
+                fullscreen: self.windows.len() == 1
             })
     }
 
@@ -325,7 +368,6 @@ mod tests {
                 wm.focus_window(None).unwrap();
 
                 expect!(wm.get_window_layout().focused_window).to(be_equal_to(None));
-                expect!(wm.get_window_layout().windows.len()).to(be_equal_to(0));
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
@@ -447,7 +489,7 @@ mod tests {
             }
 
             it "should work with 3 windows" {
-                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
 
                 expect!(wm.get_window_info(1).unwrap()).to(be_equal_to(WindowWithInfo {
                     window: 1,
@@ -520,8 +562,9 @@ mod tests {
                 wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
                 wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
 
-                let wl = wm.get_window_layout();
+                wm.resize_screen(new_screen);
 
+                let wl = wm.get_window_layout();
                 expect(wl.windows).to(be_equal_to(vec![(1, left_half),(2, right_upper_quarter),(3,right_lower_quarter)]));
             }
         }
