@@ -64,7 +64,7 @@ fn get_master_geom(screen: Screen, n: usize) -> Geometry {
         Geometry {
             x: 0,
             y: 0,
-            width: (screen.width / 2) as u32,
+            width: (screen.width / 2) as c_uint,
             height: screen.height,
         }
     } else {
@@ -73,14 +73,14 @@ fn get_master_geom(screen: Screen, n: usize) -> Geometry {
 }
 /// Return the geometry for the i-th slave (of n slaves) on the given screen
 fn get_slave_geom(screen: Screen, i: usize, n: usize) -> Geometry {
-    let nn = n as u32;
-    let ii = i as u32;
+    let nn = n as c_uint;
+    let ii = i as c_uint;
 
     Geometry {
-        x: (screen.width / 2) as i32,
-        y: ((screen.height / nn) * ii) as i32,
+        x: (screen.width / 2) as c_int,
+        y: ((screen.height / nn) * ii) as c_int,
         width: screen.width / 2,
-        height: (screen.height / nn) as u32,
+        height: (screen.height / nn) as c_uint,
     }
 }
 
@@ -239,21 +239,21 @@ mod tests {
                 height: screen.height,
             };
             let right_half = Geometry {
-                x: (screen.width/2) as i32,
+                x: (screen.width/2) as c_int,
                 y: 0,
                 width: screen.width/2,
                 height: screen.height,
             };
 
             let right_upper_quarter = Geometry {
-                x: (screen.width/2) as i32,
+                x: (screen.width/2) as c_int,
                 y: 0,
                 width: screen.width/2,
                 height: screen.height/2,
             };
             let right_lower_quarter = Geometry {
-                x: (screen.width/2) as i32,
-                y: (screen.height/2) as i32,
+                x: (screen.width/2) as c_int,
+                y: (screen.height/2) as c_int,
                 width: screen.width/2,
                 height: screen.height/2,
             };
@@ -533,14 +533,14 @@ mod tests {
                     height: new_screen.height,
                 };
                 let right_upper_quarter = Geometry {
-                    x: (new_screen.width/2) as i32,
+                    x: (new_screen.width/2) as c_int,
                     y: 0,
                     width: new_screen.width/2,
                     height: new_screen.height/2,
                 };
                 let right_lower_quarter = Geometry {
-                    x: (new_screen.width/2) as i32,
-                    y: (new_screen.height/2) as i32,
+                    x: (new_screen.width/2) as c_int,
+                    y: (new_screen.height/2) as c_int,
                     width: new_screen.width/2,
                     height: new_screen.height/2,
                 };
