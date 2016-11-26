@@ -3,7 +3,7 @@
 use std::error;
 use std::fmt;
 
-use cplwm_api::types::{Window};
+use cplwm_api::types::Window;
 
 /// The errors that a window manager can return.
 ///

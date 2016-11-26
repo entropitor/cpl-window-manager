@@ -25,7 +25,7 @@
 //! A lot of code (+ tests) were copied from assignment a
 //!
 
-use cplwm_api::types::{PrevOrNext, Geometry, Screen, Window, WindowLayout, WindowWithInfo};
+use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 pub use cplwm_api::types::FloatOrTile::*;
 use cplwm_api::wm::WindowManager;
@@ -53,7 +53,7 @@ fn get_geom(screen: Screen, i: usize, n: usize) -> Geometry {
         get_master_geom(screen, n)
     } else {
         // a slave window
-        get_slave_geom(screen, i-1, n-1)
+        get_slave_geom(screen, i - 1, n - 1)
     }
 }
 
@@ -65,7 +65,7 @@ fn get_master_geom(screen: Screen, n: usize) -> Geometry {
             x: 0,
             y: 0,
             width: (screen.width / 2) as u32,
-            height: screen.height
+            height: screen.height,
         }
     } else {
         screen.to_geometry()
@@ -80,7 +80,7 @@ fn get_slave_geom(screen: Screen, i: usize, n: usize) -> Geometry {
         x: (screen.width / 2) as i32,
         y: ((screen.height / nn) * ii) as i32,
         width: screen.width / 2,
-        height: (screen.height / nn) as u32
+        height: (screen.height / nn) as u32,
     }
 }
 
@@ -112,7 +112,9 @@ impl WindowManager for TilingWM {
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.windows.iter().position(|w| *w == window)
+        self.windows
+            .iter()
+            .position(|w| *w == window)
             .ok_or(UnknownWindow(window))
             .map(|i| {
                 self.windows.remove(i);
@@ -136,10 +138,11 @@ impl WindowManager for TilingWM {
         } else {
             WindowLayout {
                 focused_window: self.focused_index.map(|i| self.windows[i]),
-                windows: self.windows.iter()
+                windows: self.windows
+                    .iter()
                     .enumerate()
                     .map(|(i, w)| (*w, get_geom(self.screen, i, self.windows.len())))
-                    .collect()
+                    .collect(),
             }
         }
     }
@@ -165,7 +168,7 @@ impl WindowManager for TilingWM {
             None => {
                 // Set focused_index to 0 unless there are no windows
                 self.windows.first().map(|_w| 0)
-            },
+            }
             Some(i) => {
                 match dir {
                     Prev => Some((i + self.windows.len() - 1) % self.windows.len()),
@@ -292,11 +295,14 @@ mod tests {
                 wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
 
                 let wl = wm.get_window_layout();
+                let windows = vec![(1, left_half),
+                                   (2, right_upper_quarter),
+                                   (3, right_lower_quarter)];
 
                 expect!(wm.is_managed(3)).to(be_true());
                 expect!(wm.get_windows()).to(be_equal_to(vec![1, 2, 3]));
                 expect!(wl.focused_window).to(be_equal_to(Some(3)));
-                expect!(wl.windows).to(be_equal_to(vec![(1, left_half),(2, right_upper_quarter),(3, right_lower_quarter)]));
+                expect!(wl.windows).to(be_equal_to(expected_windows));
             }
         }
 
@@ -565,7 +571,10 @@ mod tests {
                 wm.resize_screen(new_screen);
 
                 let wl = wm.get_window_layout();
-                expect(wl.windows).to(be_equal_to(vec![(1, left_half),(2, right_upper_quarter),(3,right_lower_quarter)]));
+                let expected = vec![(1, left_half),
+                                    (2, right_upper_quarter),
+                                    (3,right_lower_quarter)];
+                expect(wl.windows).to(be_equal_to(expected));
             }
         }
     }

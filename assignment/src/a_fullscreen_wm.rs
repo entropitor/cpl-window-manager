@@ -14,7 +14,7 @@
 //!
 //! I used an index to track which is the focussed window.
 //!
-use cplwm_api::types::{PrevOrNext, Geometry, Screen, Window, WindowLayout, WindowWithInfo};
+use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 pub use cplwm_api::types::FloatOrTile::*;
 use cplwm_api::wm::WindowManager;
@@ -63,7 +63,9 @@ impl WindowManager for FullscreenWM {
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.windows.iter().position(|w| *w == window)
+        self.windows
+            .iter()
+            .position(|w| *w == window)
             .ok_or(UnknownWindow(window))
             .map(|i| {
                 self.windows.remove(i);
@@ -82,9 +84,11 @@ impl WindowManager for FullscreenWM {
 
     fn get_window_layout(&self) -> WindowLayout {
         // Only the focused window can be visible
-        self.focused_index.map(|i| self.windows[i]).map_or(WindowLayout::new(), |w| WindowLayout {
-            focused_window: Some(w),
-            windows: vec![(w, self.screen.to_geometry())],
+        self.focused_index.map(|i| self.windows[i]).map_or(WindowLayout::new(), |w| {
+            WindowLayout {
+                focused_window: Some(w),
+                windows: vec![(w, self.screen.to_geometry())],
+            }
         })
     }
 
@@ -109,7 +113,7 @@ impl WindowManager for FullscreenWM {
             None => {
                 // Set focused_index to 0 unless there are no windows
                 self.windows.first().map(|_w| 0)
-            },
+            }
             Some(i) => {
                 match dir {
                     Prev => Some((i + self.windows.len() - 1) % self.windows.len()),
@@ -127,7 +131,8 @@ impl WindowManager for FullscreenWM {
             .map(|i| self.focused_index.map_or(false, |j| i == j))
             .map(|is_focused| WindowWithInfo {
                 window: window,
-                geometry: if is_focused {self.screen.to_geometry()} else {Geometry {x: 0, y:0, height: 0, width: 0}},
+                geometry: if is_focused {self.screen.to_geometry()}
+                          else {Geometry {x: 0, y:0, height: 0, width: 0}},
                 float_or_tile: Tile,
                 fullscreen: is_focused
             })
@@ -408,7 +413,8 @@ mod tests {
             it "should change the windowlayout of the visible screen if a new screen is provided" {
                 wm.resize_screen(new_screen);
 
-                expect(wm.get_window_layout().windows.first().unwrap().1).to(be_equal_to(new_screen.to_geometry()));
+                let wl = wm.get_window_layout();
+                expect(wl.windows.first().unwrap().1).to(be_equal_to(new_screen.to_geometry()));
             }
         }
     }
