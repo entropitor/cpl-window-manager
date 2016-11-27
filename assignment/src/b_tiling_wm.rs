@@ -22,7 +22,7 @@ use std::os::raw::{c_int, c_uint};
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 pub use cplwm_api::types::FloatOrTile::*;
-use cplwm_api::wm::{WindowManager, TilingSupport};
+use cplwm_api::wm::{TilingSupport, WindowManager};
 
 use error::WMError;
 use error::WMError::*;
@@ -126,9 +126,7 @@ impl WindowManager for TilingWM {
                 // Set focused_index to 0 unless there are no windows
                 self.windows.first().map(|_w| 0)
             }
-            Some(i) => {
-                Some(self.cycle_index(i, dir))
-            }
+            Some(i) => Some(self.cycle_index(i, dir)),
         }
     }
 
@@ -207,7 +205,6 @@ impl TilingSupport for TilingWM {
 }
 
 impl TilingWM {
-
     /// Return the geometry for the window at position i
     fn get_geom(&self, i: usize) -> Geometry {
         if i == 0 {
@@ -236,7 +233,7 @@ impl TilingWM {
 
     /// Return the geometry for the i-th slave
     fn get_slave_geom(&self, i: usize) -> Geometry {
-        let nn = (self.windows.len()-1) as c_uint;
+        let nn = (self.windows.len() - 1) as c_uint;
         let ii = i as c_uint;
         let screen = self.screen;
 
