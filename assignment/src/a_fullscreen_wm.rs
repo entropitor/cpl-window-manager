@@ -131,8 +131,7 @@ impl WindowManager for FullscreenWM {
             .map(|i| self.focused_index.map_or(false, |j| i == j))
             .map(|is_focused| WindowWithInfo {
                 window: window,
-                geometry: if is_focused {self.screen.to_geometry()}
-                          else {Geometry {x: 0, y:0, height: 0, width: 0}},
+                geometry: self.screen.to_geometry(),
                 float_or_tile: Tile,
                 fullscreen: is_focused
             })
@@ -343,10 +342,6 @@ mod tests {
             before_each {
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
                 wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
-
-                let empty_geom = Geometry {
-                    x: 0, y: 0, width: 0, height: 0,
-                };
             }
 
             it "should work for the visible window" {
@@ -365,7 +360,7 @@ mod tests {
 
                 expect!(info).to(be_equal_to(WindowWithInfo {
                     window: 1,
-                    geometry: empty_geom,
+                    geometry: screen_geom,
                     float_or_tile: Tile,
                     fullscreen: false,
                 }));
@@ -378,7 +373,7 @@ mod tests {
 
                 expect!(info).to(be_equal_to(WindowWithInfo {
                     window: 2,
-                    geometry: empty_geom,
+                    geometry: screen_geom,
                     float_or_tile: Tile,
                     fullscreen: false,
                 }));

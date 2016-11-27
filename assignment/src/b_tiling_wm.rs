@@ -89,12 +89,11 @@ impl WindowManager for TilingWM {
     }
 
     fn get_window_layout(&self) -> WindowLayout {
-        // Only the focused window can be visible
         if self.windows.len() == 0 {
             WindowLayout::new()
         } else {
             WindowLayout {
-                focused_window: self.focused_index.map(|i| self.windows[i]),
+                focused_window: self.get_focused_window(),
                 windows: self.windows
                     .iter()
                     .enumerate()
