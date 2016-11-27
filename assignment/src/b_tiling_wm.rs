@@ -25,10 +25,11 @@
 //! A lot of code (+ tests) were copied from assignment a
 //!
 
+use std::os::raw::{c_int, c_uint};
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 pub use cplwm_api::types::FloatOrTile::*;
-use cplwm_api::wm::WindowManager;
+use cplwm_api::wm::{WindowManager, TilingSupport};
 
 use error::WMError;
 use error::WMError::*;
@@ -170,10 +171,7 @@ impl WindowManager for TilingWM {
                 self.windows.first().map(|_w| 0)
             }
             Some(i) => {
-                match dir {
-                    Prev => Some((i + self.windows.len() - 1) % self.windows.len()),
-                    Next => Some((i + 1) % self.windows.len()),
-                }
+                Some(self.cycle_index(i, dir))
             }
         }
     }
@@ -204,6 +202,63 @@ impl WindowManager for TilingWM {
     }
 }
 
+impl TilingSupport for TilingWM {
+    fn get_master_window(&self) -> Option<Window> {
+        self.windows.first().map(|w| *w)
+    }
+
+    fn swap_with_master(&mut self, window: Window) -> Result<(), Self::Error> {
+        self.windows
+            .iter()
+            .position(|w| *w == window)
+            .ok_or(UnknownWindow(window))
+            .map(|pos| {
+                // Swap the master window with the given window
+                self.windows[pos] = self.windows[0];
+                self.windows[0] = window;
+
+                // Set the focus to the new master window
+                self.focused_index = Some(0);
+            })
+    }
+
+    /// Swap the focused window with the one in the next or previous tile.
+    ///
+    /// Do nothing when there are no windows, when there is only one window,
+    /// or when no window is focused.
+    ///
+    /// If there were two tiles and the swap happened, the same window will be
+    /// focused, but the other tile will be focused.
+    ///
+    /// **Invariant**: calling `swap_windows(dir)` for any `dir` will not
+    /// change the focused window, even if no window was focused.
+    ///
+    /// **Invariant**: calling `swap_windows(dir)` and then
+    /// `swap_windows(dir.opposite())` will not change the window layout.
+    fn swap_windows(&mut self, dir: PrevOrNext) {
+        self.focused_index
+            .map(|pos| {
+                // Swap the focussed window with the next/prev
+                let other_pos = self.cycle_index(pos, dir);
+                let window = self.windows[pos];
+                self.windows[pos] = self.windows[other_pos];
+                self.windows[other_pos] = window;
+
+                // Set the focus to the same window, but the other tile
+                self.focused_index = Some(other_pos);
+            });
+    }
+}
+
+impl TilingWM {
+    fn cycle_index(&self, i: usize, dir: PrevOrNext) -> usize {
+        match dir {
+            Prev => (i + self.windows.len() - 1) % self.windows.len(),
+            Next => (i + 1) % self.windows.len(),
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(unused_must_use)]
 #[allow(unused_mut)]
@@ -211,7 +266,8 @@ impl WindowManager for TilingWM {
 mod tests {
     pub use super::*;
 
-    pub use cplwm_api::wm::WindowManager;
+    pub use std::os::raw::{c_int, c_uint};
+    pub use cplwm_api::wm::*;
     pub use cplwm_api::types::*;
     pub use cplwm_api::types::PrevOrNext::*;
 
@@ -302,7 +358,7 @@ mod tests {
                 expect!(wm.is_managed(3)).to(be_true());
                 expect!(wm.get_windows()).to(be_equal_to(vec![1, 2, 3]));
                 expect!(wl.focused_window).to(be_equal_to(Some(3)));
-                expect!(wl.windows).to(be_equal_to(expected_windows));
+                expect!(wl.windows).to(be_equal_to(windows));
             }
         }
 
@@ -344,7 +400,7 @@ mod tests {
 
                 expect!(wm.is_managed(1)).to(be_false());
                 expect!(wm.is_managed(2)).to(be_false());
-                expect(wm.get_windows().len()).to(be_equal_to(0));
+                expect!(wm.get_windows().len()).to(be_equal_to(0));
 
                 expect!(wm.get_window_layout()).to(be_equal_to(WindowLayout::new()));
             }
@@ -478,7 +534,7 @@ mod tests {
             it "should error if the window is not managed by the window manager" {
                 let info = wm.get_window_info(3);
 
-                expect(info).to(be_err());
+                expect!(info).to(be_err());
             }
 
             it "should work with 1 window" {
@@ -547,13 +603,13 @@ mod tests {
             }
 
             it "should return the default screen"{
-                expect(wm.get_screen()).to(be_equal_to(screen));
+                expect!(wm.get_screen()).to(be_equal_to(screen));
             }
 
             it "should return the new screen if one is provided" {
                 wm.resize_screen(new_screen);
 
-                expect(wm.get_screen()).to(be_equal_to(new_screen));
+                expect!(wm.get_screen()).to(be_equal_to(new_screen));
             }
 
             it "should use the new screen in get_window_layout if there is 1 window" {
@@ -561,7 +617,7 @@ mod tests {
 
                 let wl = wm.get_window_layout();
 
-                expect(wl.windows.first().unwrap().1).to(be_equal_to(new_screen.to_geometry()));
+                expect!(wl.windows.first().unwrap().1).to(be_equal_to(new_screen.to_geometry()));
             }
 
             it "should use the new screen in get_window_layout if there are more windows" {
@@ -574,7 +630,160 @@ mod tests {
                 let expected = vec![(1, left_half),
                                     (2, right_upper_quarter),
                                     (3,right_lower_quarter)];
-                expect(wl.windows).to(be_equal_to(expected));
+                expect!(wl.windows).to(be_equal_to(expected));
+            }
+        }
+
+        describe! tiling_support {
+            describe! get_master_window {
+                it "should return the master window if there is one" {
+                    wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+
+                    let master = wm.get_master_window();
+
+                    expect!(master).to(be_equal_to(Some(1)));
+                }
+
+                it "should return none if there is no master window" {
+                    let master = wm.get_master_window();
+
+                    expect!(master).to(be_equal_to(None));
+                }
+            }
+
+            describe! swap_with_master {
+                before_each {
+                    wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+                }
+
+                it "should be able to swap with master" {
+                    wm.swap_with_master(2);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
+                    expect!(wm.get_master_window()).to(be_equal_to(Some(2)));
+                    let windows = vec![(2, left_half),
+                                       (1, right_upper_quarter),
+                                       (3, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "should focus the master tile if it is already the master window" {
+                    wm.swap_with_master(1);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(1)));
+                    expect!(wm.get_master_window()).to(be_equal_to(Some(1)));
+                    let windows = vec![(1, left_half),
+                                       (2, right_upper_quarter),
+                                       (3, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "should error if the window is not managed by the wm" {
+                    expect!(wm.swap_with_master(4)).to(be_err());
+                }
+            }
+
+            describe! swap_windows {
+                before_each {
+                    wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+                }
+
+                it "should be able to swap the focussed window with another window in forward direction" {
+                    wm.focus_window(Some(2));
+
+                    wm.swap_windows(Next);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
+                    let windows = vec![(1, left_half),
+                                       (3, right_upper_quarter),
+                                       (2, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "should be able to swap the focussed window with another window in backward direction" {
+                    wm.focus_window(Some(2));
+
+                    wm.swap_windows(Prev);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
+                    let windows = vec![(2, left_half),
+                                       (1, right_upper_quarter),
+                                       (3, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "should cycle the swap in forward direction" {
+                    wm.swap_windows(Next);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+                    let windows = vec![(3, left_half),
+                                       (2, right_upper_quarter),
+                                       (1, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "should cycle the swap in backward direction" {
+                    wm.focus_window(Some(1));
+
+                    wm.swap_windows(Prev);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(1)));
+                    let windows = vec![(3, left_half),
+                                       (2, right_upper_quarter),
+                                       (1, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "shouldn't do anything if there is no focused window" {
+                    wm.focus_window(None);
+
+                    wm.swap_windows(Next);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(None));
+                    let windows = vec![(1, left_half),
+                                       (2, right_upper_quarter),
+                                       (3, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "shouldn't do anything if calling swap in 2 opposite directions" {
+                    wm.swap_windows(Prev);
+                    wm.swap_windows(Next);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+                    let windows = vec![(1, left_half),
+                                       (2, right_upper_quarter),
+                                       (3, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "shouldn't do anything if calling the swap twice and cycling in between" {
+                    wm.swap_windows(Next);
+                    wm.swap_windows(Prev);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+                    let windows = vec![(1, left_half),
+                                       (2, right_upper_quarter),
+                                       (3, right_lower_quarter)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
+
+                it "shouldn't do anything if calling with only one window" {
+                    wm.remove_window(1);
+                    wm.remove_window(2);
+
+                    wm.swap_windows(Next);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+                    let windows = vec![(3, screen_geom)];
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
+                }
             }
         }
     }
