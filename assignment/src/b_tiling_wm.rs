@@ -121,13 +121,11 @@ impl WindowManager for TilingWM {
     }
 
     fn cycle_focus(&mut self, dir: PrevOrNext) {
-        self.focused_index = match self.focused_index {
-            None => {
-                // Set focused_index to 0 unless there are no windows
-                self.windows.first().map(|_w| 0)
-            }
-            Some(i) => Some(self.cycle_index(i, dir)),
-        }
+        // If no focused window, set focused_index to 0 (unless there are no windows)
+        // If focused window, cycle the focus
+        self.focused_index = self.focused_index
+            .or_else(|| self.windows.first().map(|_w| 0))
+            .map(|i| self.cycle_index(i, dir));
     }
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
