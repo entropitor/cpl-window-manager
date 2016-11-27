@@ -11,14 +11,7 @@
 //!
 //! # Status
 //!
-//! **TODO**: Replace the question mark below with YES, NO, or PARTIAL to
-//! indicate the status of this assignment. If you want to tell something
-//! about this assignment to the grader, e.g., you have a bug you can't fix,
-//! or you want to explain your approach, write it down after the comments
-//! section.
-//! **TODO** Add TilingSupport!
-//!
-//! COMPLETED: ?
+//! COMPLETED: YES
 //!
 //! COMMENTS:
 //!
@@ -46,43 +39,6 @@ pub struct TilingWM {
     pub screen: Screen,
     /// The index of the focused window (or None if no window is focussed)
     pub focused_index: Option<usize>,
-}
-
-fn get_geom(screen: Screen, i: usize, n: usize) -> Geometry {
-    if i == 0 {
-        // the master window
-        get_master_geom(screen, n)
-    } else {
-        // a slave window
-        get_slave_geom(screen, i - 1, n - 1)
-    }
-}
-
-/// Return the geometry for the master window with n windows on the given screen
-fn get_master_geom(screen: Screen, n: usize) -> Geometry {
-    if n > 1 {
-        // There are slaves
-        Geometry {
-            x: 0,
-            y: 0,
-            width: (screen.width / 2) as c_uint,
-            height: screen.height,
-        }
-    } else {
-        screen.to_geometry()
-    }
-}
-/// Return the geometry for the i-th slave (of n slaves) on the given screen
-fn get_slave_geom(screen: Screen, i: usize, n: usize) -> Geometry {
-    let nn = n as c_uint;
-    let ii = i as c_uint;
-
-    Geometry {
-        x: (screen.width / 2) as c_int,
-        y: ((screen.height / nn) * ii) as c_int,
-        width: screen.width / 2,
-        height: (screen.height / nn) as c_uint,
-    }
 }
 
 impl WindowManager for TilingWM {
@@ -142,7 +98,7 @@ impl WindowManager for TilingWM {
                 windows: self.windows
                     .iter()
                     .enumerate()
-                    .map(|(i, w)| (*w, get_geom(self.screen, i, self.windows.len())))
+                    .map(|(i, w)| (*w, self.get_geom(i)))
                     .collect(),
             }
         }
@@ -180,7 +136,7 @@ impl WindowManager for TilingWM {
         self.windows.iter().position(|w| *w == window)
             // Return error if the window is not managed by us
             .ok_or(UnknownWindow(window))
-            .map(|i| get_geom(self.screen, i, self.windows.len()))
+            .map(|i| self.get_geom(i))
             .map(|geom| WindowWithInfo {
                 window: window,
                 geometry: geom,
@@ -251,6 +207,48 @@ impl TilingSupport for TilingWM {
 }
 
 impl TilingWM {
+
+    /// Return the geometry for the window at position i
+    fn get_geom(&self, i: usize) -> Geometry {
+        if i == 0 {
+            // the master window
+            self.get_master_geom()
+        } else {
+            // a slave window
+            self.get_slave_geom(i - 1)
+        }
+    }
+
+    /// Return the geometry for the master window
+    fn get_master_geom(&self) -> Geometry {
+        if self.windows.len() > 1 {
+            // There are slaves
+            Geometry {
+                x: 0,
+                y: 0,
+                width: (self.screen.width / 2) as c_uint,
+                height: self.screen.height,
+            }
+        } else {
+            self.screen.to_geometry()
+        }
+    }
+
+    /// Return the geometry for the i-th slave
+    fn get_slave_geom(&self, i: usize) -> Geometry {
+        let nn = (self.windows.len()-1) as c_uint;
+        let ii = i as c_uint;
+        let screen = self.screen;
+
+        Geometry {
+            x: (screen.width / 2) as c_int,
+            y: ((screen.height / nn) * ii) as c_int,
+            width: screen.width / 2,
+            height: (screen.height / nn) as c_uint,
+        }
+    }
+
+    /// Return the 'next' index in the direction of dir
     fn cycle_index(&self, i: usize, dir: PrevOrNext) -> usize {
         match dir {
             Prev => (i + self.windows.len() - 1) % self.windows.len(),
