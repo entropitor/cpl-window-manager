@@ -36,7 +36,7 @@ use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, Windo
 use cplwm_api::types::PrevOrNext::*;
 use cplwm_api::types::FloatOrTile;
 pub use cplwm_api::types::FloatOrTile::*;
-use cplwm_api::wm::{TilingSupport, FloatSupport, WindowManager};
+use cplwm_api::wm::{FloatSupport, TilingSupport, WindowManager};
 use std::collections::HashMap;
 
 use error::WMError;
@@ -57,7 +57,7 @@ pub struct FloatingWM {
     /// The wrapped window manager that takes care of the tiled windows
     pub tiling_wm: TilingWM,
     /// The window_with_info's for the managed windows
-    pub infos: HashMap<Window, WindowWithInfo>
+    pub infos: HashMap<Window, WindowWithInfo>,
 }
 
 impl WindowManager for FloatingWM {
@@ -86,7 +86,7 @@ impl WindowManager for FloatingWM {
             match window_with_info.float_or_tile {
                 Float => {
                     self.floating_windows.push(window_with_info.window);
-                },
+                }
                 Tile => {
                     self.tiling_wm.add_window(window_with_info);
                 }
@@ -138,11 +138,13 @@ impl WindowManager for FloatingWM {
                 .get_window_layout()
                 .windows;
             windows.extend(self.floating_windows
-                           .iter()
-                           .filter(|w| Some(**w) != focused_window)
-                           .map(|w| (*w, self.get_geom(&w))));
+                .iter()
+                .filter(|w| Some(**w) != focused_window)
+                .map(|w| (*w, self.get_geom(&w))));
             // Put the focused window on top (if it's floating)
-            focused_window.map(|w| if self.is_floating(w) {windows.push((w, self.get_geom(&w)))});
+            focused_window.map(|w| if self.is_floating(w) {
+                windows.push((w, self.get_geom(&w)))
+            });
 
             WindowLayout {
                 focused_window: focused_window,
@@ -179,8 +181,8 @@ impl WindowManager for FloatingWM {
         // If focused window, cycle the focus
 
         self.focused_index = self.focused_index
-             .or_else(|| self.floating_windows.first().map(|_w| 0))
-             .map(|i| self.cycle_index(i, dir));
+            .or_else(|| self.floating_windows.first().map(|_w| 0))
+            .map(|i| self.cycle_index(i, dir));
         if let Some(i) = self.focused_index {
             if i >= self.floating_windows.len() {
                 self.tiling_wm.focused_index = Some(i - self.floating_windows.len());
@@ -191,10 +193,12 @@ impl WindowManager for FloatingWM {
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
         return self.tiling_wm
             .get_window_info(window)
-            .or_else(|_e| self.infos
-                     .get(&window)
-                     .ok_or(UnknownWindow(window))
-                     .map(|wi| wi.clone()))
+            .or_else(|_e| {
+                self.infos
+                    .get(&window)
+                    .ok_or(UnknownWindow(window))
+                    .map(|wi| wi.clone())
+            });
     }
 
     fn get_screen(&self) -> Screen {
@@ -207,7 +211,11 @@ impl WindowManager for FloatingWM {
 
     fn get_focused_window(&self) -> Option<Window> {
         self.focused_index
-            .and_then(|i| if i < self.floating_windows.len() {Some(i)} else {None})
+            .and_then(|i| if i < self.floating_windows.len() {
+                Some(i)
+            } else {
+                None
+            })
             .map(|i| self.floating_windows[i])
             .or_else(|| self.tiling_wm.get_focused_window())
     }
@@ -223,7 +231,7 @@ impl TilingSupport for FloatingWM {
     }
 
     /// If the passed window is a floating window, it will first be tiled before the swap happens
-    fn swap_with_master(&mut self, window: Window) -> Result<(), Self::Error>{
+    fn swap_with_master(&mut self, window: Window) -> Result<(), Self::Error> {
         if !self.is_managed(window) {
             return Err(UnknownWindow(window));
         }
@@ -237,7 +245,7 @@ impl TilingSupport for FloatingWM {
     }
 
     /// If the focused window is a floating window, it will first be tiled
-    fn swap_windows(&mut self, dir: PrevOrNext){
+    fn swap_windows(&mut self, dir: PrevOrNext) {
         if let Some(i) = self.focused_index {
             if i >= self.floating_windows.len() {
                 self.tiling_wm.swap_windows(dir)
@@ -247,25 +255,26 @@ impl TilingSupport for FloatingWM {
 }
 
 impl FloatSupport for FloatingWM {
-    fn get_floating_windows(&self) -> Vec<Window>{
+    fn get_floating_windows(&self) -> Vec<Window> {
         self.floating_windows.clone()
     }
 
-    fn toggle_floating(&mut self, window: Window) -> Result<(), Self::Error>{
+    fn toggle_floating(&mut self, window: Window) -> Result<(), Self::Error> {
         if !self.is_managed(window) {
-            return Err(UnknownWindow(window))
+            return Err(UnknownWindow(window));
         }
 
-        let float_or_tile = if self.is_floating(window) {Tile} else {Float};
+        let float_or_tile = if self.is_floating(window) {
+            Tile
+        } else {
+            Float
+        };
         self.float_or_tile_window(&window, float_or_tile);
 
         Ok(())
     }
 
-    fn set_window_geometry(&mut self,
-                           window: Window,
-                           new_geometry: Geometry)
-                           -> Result<(), Self::Error>{
+    fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
         if !self.is_managed(window) {
             return Err(UnknownWindow(window));
         }
