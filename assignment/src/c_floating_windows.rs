@@ -1003,4 +1003,126 @@ mod tests {
             }
         }
     }
+
+    describe! integration_test {
+        it "should work with the example from the forum" {
+            let screen: Screen = Screen {
+                width: 800,
+                height: 600,
+            };
+            let screen_geom = screen.to_geometry();
+
+            let some_geom: Geometry = Geometry {
+                x: 10,
+                y: 10,
+                width: 100,
+                height: 100,
+            };
+
+            let left_half = Geometry {
+                x: 0, y: 0,
+                width: screen.width/2,
+                height: screen.height,
+            };
+            let right_half = Geometry {
+                x: (screen.width/2) as c_int,
+                y: 0,
+                width: screen.width/2,
+                height: screen.height,
+            };
+            let right_upper_quarter = Geometry {
+                x: (screen.width/2) as c_int,
+                y: 0,
+                width: screen.width/2,
+                height: screen.height/2,
+            };
+            let right_lower_quarter = Geometry {
+                x: (screen.width/2) as c_int,
+                y: (screen.height/2) as c_int,
+                width: screen.width/2,
+                height: screen.height/2,
+            };
+            let right_upper_sixth = Geometry {
+                x: (screen.width/2) as c_int,
+                y: 0,
+                width: screen.width/2,
+                height: screen.height/3,
+            };
+            let right_middle_sixth = Geometry {
+                x: (screen.width/2) as c_int,
+                y: (screen.height/3) as c_int,
+                width: screen.width/2,
+                height: screen.height/3,
+            };
+            let right_lower_sixth = Geometry {
+                x: (screen.width/2) as c_int,
+                y: (screen.height*2/3) as c_int,
+                width: screen.width/2,
+                height: screen.height/3,
+            };
+
+            let floating_geom: Geometry = Geometry {
+                x: 20,
+                y: 40,
+                width: 200,
+                height: 20,
+            };
+
+            let mut wm = FloatingWM::new(screen);
+
+            // Let's walk through the steps:
+            // windows = []
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![]));
+
+            // add 1 as a floating window
+            wm.add_window(WindowWithInfo::new_float(1, floating_geom)).unwrap();
+            // windows = [(1, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(1, floating_geom)]));
+
+            // add 2 as a tiled window
+            wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+            // windows = [(2, fullscreen_geometry), (1, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, screen_geom),(1, floating_geom)]));
+
+            // add 3 as a floating window
+            wm.add_window(WindowWithInfo::new_float(3, floating_geom)).unwrap();
+            // windows = [(2, fullscreen_geometry), (1, float_geometry), (3, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, screen_geom),(1, floating_geom), (3, floating_geom)]));
+
+            // add 4 as a tiled window
+            wm.add_window(WindowWithInfo::new_tiled(4, some_geom)).unwrap();
+            // windows = [(2, master_geometry), (4, slave_geometry), (1, float_geometry), (3, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_half), (1, floating_geom), (3, floating_geom)]));
+
+            // add 5 as a floating window
+            wm.add_window(WindowWithInfo::new_float(5, floating_geom)).unwrap();
+            // windows = [(2, master_geometry), (4, slave_geometry), (1, float_geometry), (3, float_geometry), (5, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_half), (1, floating_geom), (3, floating_geom), (5, floating_geom)]));
+
+            // add 6 as a tiled window
+            wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
+            // windows = [(2, master_geometry), (4, slave_geometry), (6, slave_geometry), (1, float_geometry), (3, float_geometry), (5, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_quarter), (6, right_lower_quarter), (1, floating_geom), (3, floating_geom), (5, floating_geom)]));
+
+            // toggle_floating(3)
+            wm.toggle_floating(3);
+            // windows = [(2, master_geometry), (4, slave_geometry), (6, slave_geometry), (3, slave_geometry), (1, float_geometry), (5, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (6, right_middle_sixth), (3, right_lower_sixth), (1, floating_geom), (5, floating_geom)]));
+
+            // toggle_floating(6)
+            wm.toggle_floating(6);
+            // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, float_geometry), (5, float_geometry), (6, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_quarter), (3, right_lower_quarter), (1, floating_geom), (5, floating_geom), (6, some_geom)]));
+
+            // toggle_floating(1)
+            wm.toggle_floating(1);
+            // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (5, float_geometry), (6, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (5, floating_geom), (6, some_geom)]));
+
+            // focus_window(Some(5))
+            wm.focus_window(Some(5));
+            // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (6, float_geometry), (5, float_geometry)]
+            expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (6, some_geom), (5, floating_geom)]));
+        }
+    }
 }
