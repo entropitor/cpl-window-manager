@@ -18,13 +18,7 @@
 //!
 //! # Status
 //!
-//! **TODO**: Replace the question mark below with YES, NO, or PARTIAL to
-//! indicate the status of this assignment. If you want to tell something
-//! about this assignment to the grader, e.g., you have a bug you can't fix,
-//! or you want to explain your approach, write it down after the comments
-//! section.
-//!
-//! COMPLETED: ?
+//! COMPLETED: YES
 //!
 //! COMMENTS:
 //!
@@ -40,12 +34,13 @@ use std::collections::HashMap;
 
 use error::WMError;
 use error::WMError::*;
-use b_tiling_wm::TilingWM;
+use b_tiling_wm::WMName as TilingWM;
 
 /// Type alias for automated tests
 pub type WMName = FloatingWM;
 
 /// Main struct of the window manager
+/// This WM can float or tile windows
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 pub struct FloatingWM {
     /// A vector of floating windows
@@ -73,33 +68,30 @@ impl WindowManager for FloatingWM {
     }
 
     fn get_windows(&self) -> Vec<Window> {
-        // Return a clone so external users can't access the original Vector
         let mut windows = self.tiling_wm.get_windows();
-        windows.extend(self.floating_windows.clone());
+        windows.extend(self.get_floating_windows());
 
         windows
     }
 
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
-        let mut result = Ok(());
-
         if !self.is_managed(window_with_info.window) {
             match window_with_info.float_or_tile {
                 Float => {
                     self.floating_windows.push(window_with_info.window);
                 }
                 Tile => {
-                    result = self.tiling_wm.add_window(window_with_info);
+                    try!(self.tiling_wm.add_window(window_with_info));
                 }
             }
             // Add the window info to the wm
             self.infos.insert(window_with_info.window.clone(), window_with_info);
 
             // Focus on this new window
-            result = result.and_then(|_| self.focus_window(Some(window_with_info.window)));
+            try!(self.focus_window(Some(window_with_info.window)));
         }
 
-        result
+        Ok(())
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
@@ -107,7 +99,27 @@ impl WindowManager for FloatingWM {
         self.infos.remove(&window);
 
         if self.tiling_wm.is_managed(window) {
-            self.tiling_wm.remove_window(window)
+            self.tiling_wm
+                .get_windows()
+                .iter()
+                .position(|w| *w == window)
+                .ok_or(UnknownWindow(window))
+                .and_then(|i| {
+                    try!(self.tiling_wm.remove_window(window));
+
+                    // if there is no window left, no window has focus.
+                    if self.get_windows().len() == 0 {
+                        self.focus_window(None)
+                    } else if let Some(j) = self.focused_index {
+                        if self.get_floating_windows().len() + i <= j {
+                            // Update the index of the focused window to keep the same window in focus
+                            self.cycle_focus(Prev);
+                        }
+                        Ok(())
+                    } else {
+                        Ok(())
+                    }
+                })
         } else {
             self.floating_windows
                 .iter()
@@ -224,7 +236,7 @@ impl WindowManager for FloatingWM {
     }
 
     fn is_managed(&self, window: Window) -> bool {
-        self.floating_windows.contains(&window) || self.tiling_wm.is_managed(window)
+        self.is_floating(window) || self.tiling_wm.is_managed(window)
     }
 }
 
@@ -240,12 +252,9 @@ impl TilingSupport for FloatingWM {
         }
 
         if self.floating_windows.contains(&window) {
-            self.float_or_tile_window(&window, Tile)
-        } else {
-            Ok(())
-        }.and_then(|_| {
-            self.tiling_wm.swap_with_master(window)
-        })
+            try!(self.float_or_tile_window(&window, Tile));
+        }
+        self.tiling_wm.swap_with_master(window)
     }
 
     /// If the focused window is a floating window, it will first be tiled
@@ -326,8 +335,8 @@ impl FloatingWM {
             info
         }).ok_or(UnknownWindow(*window))
         .and_then(|wi| {
-            self.remove_window(*window)
-                .and_then(|_| self.add_window(wi))
+            try!(self.remove_window(*window));
+            self.add_window(wi)
         })
     }
 }
@@ -404,6 +413,54 @@ mod tests {
         describe! add_window {
             it "should add a window correctly" {
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+            }
+
+            it "shouldn't add a window twice" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+            }
+
+            it "shouldn't add a floating window twice" {
+                wm.add_window(WindowWithInfo::new_float(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_float(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, some_geom)]));
+            }
+
+            it "shouldn't add a floating window twice if passed as tiled" {
+                wm.add_window(WindowWithInfo::new_float(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, some_geom)]));
+            }
+
+            it "shouldn't add a tiled window twice if passed as float" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_float(1, some_geom)).unwrap();
 
                 let wl = wm.get_window_layout();
 
@@ -498,6 +555,21 @@ mod tests {
                 expect!(wl.focused_window).to(be_equal_to(Some(3)));
                 expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
                 expect!(wl.windows).to(be_equal_to(vec![(1, left_half),(3, right_half)]));
+            }
+
+            it "should cycle focus if we remove the focused tiled window" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+
+                wm.remove_window(3).unwrap();
+
+                expect!(wm.is_managed(3)).to(be_false());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1, 2]));
+                let wl = wm.get_window_layout();
+                expect!(wl.focused_window).to(be_equal_to(Some(2)));
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, left_half),(2, right_half)]));
             }
 
             it "should not lose focus if we remove another float window" {

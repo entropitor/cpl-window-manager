@@ -54,7 +54,6 @@ impl WindowManager for TilingWM {
     }
 
     fn get_windows(&self) -> Vec<Window> {
-        // Return a clone so external users can't access the original Vector
         self.windows.clone()
     }
 
@@ -315,6 +314,18 @@ mod tests {
 
         describe! add_window {
             it "should add a window correctly" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+            }
+
+            it "shouldn't add a window twice" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
 
                 let wl = wm.get_window_layout();
