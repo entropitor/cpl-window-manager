@@ -31,7 +31,6 @@
 //! A lot of tests were copied and adapted from the b_tiling_wm
 //!
 
-use std::os::raw::{c_int, c_uint};
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 use cplwm_api::types::FloatOrTile;
@@ -82,23 +81,25 @@ impl WindowManager for FloatingWM {
     }
 
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
+        let mut result = Ok(());
+
         if !self.is_managed(window_with_info.window) {
             match window_with_info.float_or_tile {
                 Float => {
                     self.floating_windows.push(window_with_info.window);
                 }
                 Tile => {
-                    self.tiling_wm.add_window(window_with_info);
+                    result = self.tiling_wm.add_window(window_with_info);
                 }
             }
             // Add the window info to the wm
             self.infos.insert(window_with_info.window.clone(), window_with_info);
 
             // Focus on this new window
-            self.focus_window(Some(window_with_info.window));
+            result = result.and_then(|_| self.focus_window(Some(window_with_info.window)));
         }
 
-        Ok(())
+        result
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
@@ -112,17 +113,20 @@ impl WindowManager for FloatingWM {
                 .iter()
                 .position(|w| *w == window)
                 .ok_or(UnknownWindow(window))
-                .map(|i| {
+                .and_then(|i| {
                     self.floating_windows.remove(i);
 
                     // if there is no window left, no window has focus.
                     if self.get_windows().len() == 0 {
-                        self.focus_window(None);
+                        self.focus_window(None)
                     } else if let Some(j) = self.focused_index {
                         if i <= j {
                             // Update the index of the focused window to keep the same window in focus
                             self.cycle_focus(Prev);
                         }
+                        Ok(())
+                    } else {
+                        Ok(())
                     }
                 })
         }
@@ -157,23 +161,22 @@ impl WindowManager for FloatingWM {
         match window {
             None => {
                 self.focused_index = None;
-                self.tiling_wm.focus_window(None);
+                self.tiling_wm.focus_window(None)
             }
             Some(w) => {
                 if self.tiling_wm.is_managed(w) {
                     let result = self.tiling_wm.focus_window(Some(w));
                     self.focused_index = self.tiling_wm.focused_index.map(|i| self.floating_windows.len() + i);
-                    return result;
+                    result
                 } else if self.is_managed(w) {
                     // Set focused index to the position of the window passed along
                     self.focused_index = self.floating_windows.iter().position(|w2| *w2 == w);
+                    Ok(())
                 } else {
-                    return Err(UnknownWindow(w));
+                    Err(UnknownWindow(w))
                 }
             }
         }
-
-        Ok(())
     }
 
     fn cycle_focus(&mut self, dir: PrevOrNext) {
@@ -235,13 +238,14 @@ impl TilingSupport for FloatingWM {
         if !self.is_managed(window) {
             return Err(UnknownWindow(window));
         }
+
         if self.floating_windows.contains(&window) {
-            self.float_or_tile_window(&window, Tile);
-        }
-
-        self.tiling_wm.swap_with_master(window);
-
-        Ok(())
+            self.float_or_tile_window(&window, Tile)
+        } else {
+            Ok(())
+        }.and_then(|_| {
+            self.tiling_wm.swap_with_master(window)
+        })
     }
 
     /// If the focused window is a floating window, it will first be tiled
@@ -269,9 +273,8 @@ impl FloatSupport for FloatingWM {
         } else {
             Float
         };
-        self.float_or_tile_window(&window, float_or_tile);
 
-        Ok(())
+        self.float_or_tile_window(&window, float_or_tile)
     }
 
     fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
@@ -279,18 +282,30 @@ impl FloatSupport for FloatingWM {
             return Err(UnknownWindow(window));
         }
 
-        let mut wi = self.infos.get(&window).unwrap().clone();
-        wi.geometry = new_geometry;
-        self.infos.insert(window, wi);
+        let new_wi = self.infos
+            .get(&window)
+            .ok_or(UnknownWindow(window))
+            .map(|info| {
+                let mut wi = info.clone();
+                wi.geometry = new_geometry;
+                wi
+            });
 
-        Ok(())
+        new_wi.map(|wi| {
+            self.infos.insert(window, wi);
+        })
     }
 }
 
 impl FloatingWM {
     /// Get the requested geometry for this window
+    /// Panics if the window is not in the managed windows
     fn get_geom(&self, window: &Window) -> Geometry {
-        self.infos.get(window).unwrap().geometry
+        self.infos
+            .get(window)
+            // a window is in the infos map if it's managed by our WM
+            .unwrap()
+            .geometry
     }
 
     /// Return the 'next' index in the direction of dir
@@ -303,12 +318,17 @@ impl FloatingWM {
     }
 
     /// Float or tile the window.
-    /// Will panic if the window is not managed by this wm
-    fn float_or_tile_window(&mut self, window: &Window, float_or_tile: FloatOrTile) {
-        let mut wi = self.infos.get(&window).unwrap().clone();
-        wi.float_or_tile = float_or_tile;
-        self.remove_window(*window);
-        self.add_window(wi);
+    fn float_or_tile_window(&mut self, window: &Window, float_or_tile: FloatOrTile) -> Result<(), WMError> {
+        let window_info = self.infos.get(&window).map(|info| info.clone());
+
+        window_info.map(|mut info| {
+            info.float_or_tile = float_or_tile;
+            info
+        }).ok_or(UnknownWindow(*window))
+        .and_then(|wi| {
+            self.remove_window(*window)
+                .and_then(|_| self.add_window(wi))
+        })
     }
 }
 

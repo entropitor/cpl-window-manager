@@ -14,7 +14,7 @@
 //!
 //! I used an index to track which is the focussed window.
 //!
-use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
+use cplwm_api::types::{PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 pub use cplwm_api::types::FloatOrTile::*;
 use cplwm_api::wm::WindowManager;
