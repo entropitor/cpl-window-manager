@@ -172,19 +172,6 @@ impl TilingSupport for TilingWM {
             })
     }
 
-    /// Swap the focused window with the one in the next or previous tile.
-    ///
-    /// Do nothing when there are no windows, when there is only one window,
-    /// or when no window is focused.
-    ///
-    /// If there were two tiles and the swap happened, the same window will be
-    /// focused, but the other tile will be focused.
-    ///
-    /// **Invariant**: calling `swap_windows(dir)` for any `dir` will not
-    /// change the focused window, even if no window was focused.
-    ///
-    /// **Invariant**: calling `swap_windows(dir)` and then
-    /// `swap_windows(dir.opposite())` will not change the window layout.
     fn swap_windows(&mut self, dir: PrevOrNext) {
         self.focused_index
             .map(|pos| {
