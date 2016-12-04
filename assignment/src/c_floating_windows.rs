@@ -898,6 +898,8 @@ mod tests {
                 }
 
                 it "should return none if there is no master window" {
+                    wm.add_window(WindowWithInfo::new_float(5, some_geom)).unwrap();
+
                     let master = wm.get_master_window();
 
                     expect!(master).to(be_equal_to(None));

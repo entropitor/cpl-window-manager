@@ -843,6 +843,10 @@ mod tests {
                     wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
                     wm.add_window(WindowWithInfo::new_float(5, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
+                    wm.toggle_minimised(6);
+                    wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
+                    wm.toggle_minimised(7);
 
                     let master = wm.get_master_window();
 
@@ -850,6 +854,12 @@ mod tests {
                 }
 
                 it "should return none if there is no master window" {
+                    wm.add_window(WindowWithInfo::new_float(5, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
+                    wm.toggle_minimised(6);
+                    wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
+                    wm.toggle_minimised(7);
+
                     let master = wm.get_master_window();
 
                     expect!(master).to(be_equal_to(None));

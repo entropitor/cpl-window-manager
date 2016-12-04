@@ -78,10 +78,20 @@ impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
     }
 
     /// Removes the current fullscreen window if any
+    /// (unless the window was already added)
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
+        if self.is_managed(window_with_info.window) {
+            return Ok(())
+        }
+
         self.un_fullscreen();
 
-        self.wrapped_wm.add_window(window_with_info)
+        if window_with_info.fullscreen {
+            self.fullscreen_window = Some(window_with_info);
+            Ok(())
+        } else {
+            self.wrapped_wm.add_window(window_with_info)
+        }
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
@@ -89,6 +99,7 @@ impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
             self.fullscreen_window = None;
             return Ok(());
         }
+
         self.wrapped_wm.remove_window(window)
     }
 
@@ -105,11 +116,13 @@ impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
     /// If the new focused window is not the fullscreen window, the fullscreen window will be un-fullscreened
     fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
         // If the focus is a new window, remove the fullscreenness
-        if !window.map(|w| self.is_fullscreen(w)).unwrap_or(false) {
+        if window.map(|w| self.is_fullscreen(w)).unwrap_or(false) {
+            // Wants to focus the fullscreen window
+            Ok(())
+        } else {
             self.un_fullscreen();
+            self.wrapped_wm.focus_window(window)
         }
-
-        self.wrapped_wm.focus_window(window)
     }
 
     fn cycle_focus(&mut self, dir: PrevOrNext) {
@@ -120,8 +133,15 @@ impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
         if self.is_fullscreen(window) {
-            // we know we can unwrap because we just checked if the window is fullscreen
-            Ok(self.fullscreen_window.unwrap())
+            Ok(self.fullscreen_window
+               .map(|info| WindowWithInfo {
+                   window: info.window,
+                   geometry: self.get_screen().to_geometry(),
+                   float_or_tile: info.float_or_tile,
+                   fullscreen: true,
+               })
+               // we know we can unwrap because we just checked if the window is fullscreen
+               .unwrap())
         } else {
             self.wrapped_wm.get_window_info(window)
         }
@@ -197,9 +217,13 @@ impl<WrappedWM: MinimiseSupport> MinimiseSupport for FullscreenWM<WrappedWM> {
         self.wrapped_wm.get_minimised_windows()
     }
 
-    /// If the passed window is fullscreen, it will un-fullscreen it first
+    /// If the passed window is fullscreen, it will first un-fullscreen it.
     fn toggle_minimised(&mut self, window: Window) -> Result<(), Self::Error> {
         if self.is_fullscreen(window) {
+            // let wi = try!(self.get_window_info(window));
+            // try!(self.wrapped_wm.add_window(wi));
+
+            // self.fullscreen_window = None;
             self.un_fullscreen();
         }
 
@@ -219,8 +243,11 @@ impl<WrappedWM: WindowManager> FullscreenSupport for FullscreenWM<WrappedWM> {
 
     fn toggle_fullscreen(&mut self, window: Window) -> Result<(), Self::Error> {
         if self.is_fullscreen(window) {
-            self.un_fullscreen();
-            Ok(())
+            // We know there is a fullscreen window so we can unwrap
+            let wi = self.fullscreen_window.unwrap();
+            self.fullscreen_window = None;
+
+            self.wrapped_wm.add_window(wi)
         } else {
             let wi = try!(self.wrapped_wm.get_window_info(window));
             self.fullscreen_window = Some(wi);
@@ -361,7 +388,6 @@ mod tests {
                 expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
             }
 
-
             it "shouldn't add a minimised window twice" {
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
                 wm.toggle_minimised(1);
@@ -373,6 +399,62 @@ mod tests {
                 expect!(wm.get_windows()).to(be_equal_to(vec![1]));
                 expect!(wl.focused_window).to(be_equal_to(None));
                 expect!(wl.windows).to(be_equal_to(vec![]));
+            }
+
+            it "should add a fullscreen window correctly" {
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_float(3, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_fullscreen(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![2, 3, 1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+                expect!(wm.is_fullscreen(1)).to(be_true());
+            }
+
+            it "shouldn't add a fullscreen window twice" {
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_fullscreen(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_fullscreen(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![2, 1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+                expect!(wm.is_fullscreen(1)).to(be_true());
+            }
+
+            it "shouldn't add a window twice if passed 2nd time as fullscreen" {
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_fullscreen(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![2, 1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(2, left_half),(1, right_half)]));
+                expect!(wm.is_fullscreen(1)).to(be_false());
+            }
+
+            it "shouldn't add a window twice if passed 1st time as fullscreen" {
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_fullscreen(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![2, 1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+                expect!(wm.is_fullscreen(1)).to(be_true());
             }
 
             it "should add 2 windows correctly" {
@@ -445,6 +527,19 @@ mod tests {
                                                         (2, right_half),
                                                         (3, floating_geom)]));
             }
+
+            it "should add work for a fullscreen window and a tiled window" {
+                wm.add_window(WindowWithInfo::new_fullscreen(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+
+                let wl = wm.get_window_layout();
+
+                expect!(wm.is_managed(1)).to(be_true());
+                expect!(wm.is_managed(2)).to(be_true());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1, 2]));
+                expect!(wl.focused_window).to(be_equal_to(Some(2)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, left_half),(2, right_half)]));
+            }
         }
 
         describe! remove_window {
@@ -457,6 +552,35 @@ mod tests {
                 let wl = wm.get_window_layout();
                 expect!(wm.is_managed(2)).to(be_false());
                 expect!(wm.get_windows()).to(be_equal_to(vec![1]));
+                expect!(wl.focused_window).to(be_equal_to(Some(1)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
+            }
+
+            it "should remove a fullscreen correctly" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_fullscreen(2, some_geom)).unwrap();
+
+                wm.remove_window(2).unwrap();
+
+                let wl = wm.get_window_layout();
+                expect!(wm.is_managed(2)).to(be_false());
+                expect!(wm.get_windows()).to(be_equal_to(vec![1,3]));
+                expect!(wl.focused_window).to(be_equal_to(Some(3)));
+                expect!(wl.windows).to(be_equal_to(vec![(1, left_half),(3, right_half)]));
+            }
+
+            it "should remove a window correctly if there is a fullscreen window" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.toggle_fullscreen(1);
+
+                wm.remove_window(2).unwrap();
+
+                let wl = wm.get_window_layout();
+                expect!(wm.is_managed(2)).to(be_false());
+                expect!(wm.get_windows()).to(be_equal_to(vec![3, 1]));
                 expect!(wl.focused_window).to(be_equal_to(Some(1)));
                 expect!(wl.windows).to(be_equal_to(vec![(1, screen_geom)]));
             }
@@ -590,6 +714,36 @@ mod tests {
                 expect!(wm.get_window_layout().focused_window).to(be_equal_to(Some(6)));
                 expect!(wm.get_focused_window()).to(be_equal_to(Some(6)));
             }
+
+            it "should keep the focus if it wants to refocus on the fullscreen window" {
+                wm.add_window(WindowWithInfo::new_fullscreen(7, some_geom)).unwrap();
+
+                wm.focus_window(Some(7)).unwrap();
+
+                expect!(wm.is_fullscreen(7)).to(be_true());
+                expect!(wm.get_window_layout().focused_window).to(be_equal_to(Some(7)));
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(7)));
+            }
+
+            it "should unfullscreen if it wants to lose the focus on the fullscreen window" {
+                wm.add_window(WindowWithInfo::new_fullscreen(7, some_geom)).unwrap();
+
+                wm.focus_window(None).unwrap();
+
+                expect!(wm.is_fullscreen(7)).to(be_false());
+                expect!(wm.get_window_layout().focused_window).to(be_equal_to(None));
+                expect!(wm.get_focused_window()).to(be_equal_to(None));
+            }
+
+            it "should unfullscreen if it wants to set the focus to a window different from the fullscreen window" {
+                wm.add_window(WindowWithInfo::new_fullscreen(7, some_geom)).unwrap();
+
+                wm.focus_window(Some(3)).unwrap();
+
+                expect!(wm.is_fullscreen(7)).to(be_false());
+                expect!(wm.get_window_layout().focused_window).to(be_equal_to(Some(3)));
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+            }
         }
 
         describe! cycle_focus {
@@ -673,6 +827,15 @@ mod tests {
                                                                             (4, right_lower_quarter),
                                                                             (5, some_geom),
                                                                             (3, some_geom)]));
+            }
+
+            it "should unfullscreen on calling cycle_focus" {
+                wm.add_window(WindowWithInfo::new_fullscreen(7, some_geom)).unwrap();
+
+                wm.cycle_focus(Prev);
+
+                expect!(wm.is_fullscreen(7)).to(be_false());
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(4)));
             }
         }
 
@@ -796,6 +959,37 @@ mod tests {
                     fullscreen: false,
                 }));
             }
+
+            it "should work with a fullscreen tiled window" {
+                wm.add_window(WindowWithInfo::new_fullscreen(6, some_geom)).unwrap();
+
+                let info = wm.get_window_info(6).unwrap();
+
+                expect!(info).to(be_equal_to(WindowWithInfo {
+                    window: 6,
+                    geometry: screen_geom,
+                    float_or_tile: FloatOrTile::Tile,
+                    fullscreen: true,
+                }));
+            }
+
+            it "should work with a fullscreen floating window" {
+                wm.add_window(WindowWithInfo {
+                    window: 6,
+                    fullscreen: true,
+                    float_or_tile: Float,
+                    geometry: some_geom,
+                }).unwrap();
+
+                let info = wm.get_window_info(6).unwrap();
+
+                expect!(info).to(be_equal_to(WindowWithInfo {
+                    window: 6,
+                    geometry: screen_geom,
+                    float_or_tile: Float,
+                    fullscreen: true,
+                }));
+            }
         }
 
         describe! screen {
@@ -858,6 +1052,15 @@ mod tests {
                                                         (3, right_lower_quarter),
                                                         (5, some_geom)]));
             }
+
+            it "should use the new screen in get_window_layout if there is a fullscreen window" {
+                wm.add_window(WindowWithInfo::new_fullscreen(2, some_geom)).unwrap();
+
+                wm.resize_screen(new_screen);
+
+                let wl = wm.get_window_layout();
+                expect!(wl.windows).to(be_equal_to(vec![(2, new_screen.to_geometry())]));
+            }
         }
 
         describe! tiling_support {
@@ -867,6 +1070,11 @@ mod tests {
                     wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
                     wm.add_window(WindowWithInfo::new_float(5, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
+                    wm.toggle_minimised(6);
+                    wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
+                    wm.toggle_minimised(7);
+                    wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
 
                     let master = wm.get_master_window();
 
@@ -874,6 +1082,13 @@ mod tests {
                 }
 
                 it "should return none if there is no master window" {
+                    wm.add_window(WindowWithInfo::new_float(5, some_geom)).unwrap();
+                    wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
+                    wm.toggle_minimised(6);
+                    wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
+                    wm.toggle_minimised(7);
+                    wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
+
                     let master = wm.get_master_window();
 
                     expect!(master).to(be_equal_to(None));
@@ -951,6 +1166,32 @@ mod tests {
 
                 it "should error if the window is not managed by the wm" {
                     expect!(wm.swap_with_master(4)).to(be_err());
+                }
+
+                it "should unfullscreen if swaping the fullscreen with master" {
+                    wm.toggle_fullscreen(3);
+
+                    wm.swap_with_master(3);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+                    expect!(wm.get_master_window()).to(be_equal_to(Some(3)));
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(3, left_half),
+                                                                                (2, right_upper_quarter),
+                                                                                (1, right_lower_quarter),
+                                                                                (5, some_geom)]));
+                }
+
+                it "should unfullscreen if swaping a window with master while other window fullscreen" {
+                    wm.toggle_fullscreen(3);
+
+                    wm.swap_with_master(2);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
+                    expect!(wm.get_master_window()).to(be_equal_to(Some(2)));
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half),
+                                                                                (1, right_upper_quarter),
+                                                                                (3, right_lower_quarter),
+                                                                                (5, some_geom)]));
                 }
             }
 
@@ -1058,6 +1299,18 @@ mod tests {
                     expect!(wm.get_window_layout().windows).to(be_equal_to([(3, screen_geom),
                                                                             (5, floating_geom)]));
                 }
+
+                it "should unfullscreen if called with a fullscreen window" {
+                    wm.toggle_fullscreen(2);
+
+                    wm.swap_windows(Prev);
+
+                    expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
+                    expect!(wm.get_window_layout().windows).to(be_equal_to([(1, left_half),
+                                                                            (2, right_upper_quarter),
+                                                                            (3, right_lower_quarter),
+                                                                            (5, floating_geom)]));
+                }
             }
         }
 
@@ -1074,6 +1327,8 @@ mod tests {
             }
 
             it "should return the floating windows" {
+                wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
+
                 expect!(wm.get_floating_windows()).to(be_equal_to(vec![4, 5]));
             }
 
@@ -1102,6 +1357,24 @@ mod tests {
                     wm.toggle_floating(6);
 
                     expect!(wm.is_floating(6)).to(be_false());
+                }
+
+                it "should be able to toggle floating on for fullscreen windows" {
+                    wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
+                    wm.toggle_floating(8);
+
+                    expect!(wm.is_floating(8)).to(be_true());
+                    expect!(wm.is_fullscreen(8)).to(be_false());
+                }
+
+                it "should be able to toggle floating off for fullscreen windows" {
+                    wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
+                    wm.toggle_fullscreen(5);
+                    wm.toggle_floating(5);
+
+                    expect!(wm.is_floating(5)).to(be_false());
+                    expect!(wm.is_fullscreen(5)).to(be_false());
+                    expect!(wm.is_fullscreen(8)).to(be_false());
                 }
             }
 
@@ -1132,6 +1405,15 @@ mod tests {
                     wm.set_window_geometry(7, floating_geom).unwrap();
 
                     expect!(wm.get_window_info(7).unwrap().geometry).to(be_equal_to(floating_geom));
+                }
+
+                it "should be able to set a new window geometry for a fullscreen window" {
+                    wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
+                    wm.set_window_geometry(8, floating_geom).unwrap();
+
+                    wm.toggle_floating(8);
+
+                    expect!(wm.get_window_info(8).unwrap().geometry).to(be_equal_to(floating_geom));
                 }
             }
         }
@@ -1188,6 +1470,16 @@ mod tests {
                     expect!(wm.get_minimised_windows()).to(be_equal_to(vec![7]));
                     expect!(wm.is_minimised(6)).to(be_false());
                     expect!(wm.is_minimised(7)).to(be_true());
+                }
+
+                it "should include a fullscreen window that got minimised" {
+                    wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
+                    expect!(wm.is_minimised(8)).to(be_false());
+
+                    wm.toggle_minimised(8);
+
+                    expect!(wm.get_minimised_windows()).to(be_equal_to(vec![8]));
+                    expect!(wm.is_minimised(8)).to(be_true());
                 }
             }
 
@@ -1256,6 +1548,102 @@ mod tests {
                         float_or_tile: Float,
                         fullscreen: false,
                     }));
+                }
+
+                it "should not unfullscreen if other window is minimised" {
+                    wm.toggle_fullscreen(3);
+
+                    wm.toggle_minimised(2);
+
+                    expect!(wm.is_managed(2)).to(be_true());
+                    expect!(wm.is_minimised(2)).to(be_true());
+                    expect!(wm.get_windows().contains(&2)).to(be_true());
+                    let visible_windows: Vec<Window> = wm.get_window_layout().windows.iter().map(|t| t.0).collect();
+                    expect!(visible_windows.contains(&2)).to(be_false());
+                    expect!(wm.get_window_info(2).unwrap()).to(be_equal_to(WindowWithInfo {
+                        window: 2,
+                        geometry: right_half,
+                        float_or_tile: Tile,
+                        fullscreen: false,
+                    }));
+                    expect!(wm.is_fullscreen(3)).to(be_true());
+                }
+
+                it "should unfullscreen if fullscreen window is minimised" {
+                    wm.toggle_fullscreen(3);
+
+                    wm.toggle_minimised(3);
+
+                    expect!(wm.is_managed(3)).to(be_true());
+                    expect!(wm.is_minimised(3)).to(be_true());
+                    expect!(wm.get_windows().contains(&3)).to(be_true());
+                    let visible_windows: Vec<Window> = wm.get_window_layout().windows.iter().map(|t| t.0).collect();
+                    expect!(visible_windows.contains(&3)).to(be_false());
+                    expect!(wm.get_window_info(3).unwrap()).to(be_equal_to(WindowWithInfo {
+                        window: 3,
+                        geometry: right_lower_quarter,
+                        float_or_tile: Tile,
+                        fullscreen: false,
+                    }));
+                    expect!(wm.is_fullscreen(3)).to(be_false());
+                }
+
+                it "should not restore window as fullscreen if toggle minimised" {
+                    wm.toggle_fullscreen(3);
+
+                    wm.toggle_minimised(3);
+                    wm.toggle_minimised(3);
+
+                    expect!(wm.is_fullscreen(3)).to(be_false());
+                }
+            }
+        }
+
+        describe! fullscreen_support {
+            before_each {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_float(5, floating_geom)).unwrap();
+                wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
+
+            }
+
+            describe! get_fullscreen_window {
+                it "should return the fullscreen window" {
+                    wm.add_window(WindowWithInfo::new_fullscreen(8, some_geom)).unwrap();
+
+                    expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(8)));
+                }
+
+                it "should return none if there is no fullscreen window" {
+                    expect!(wm.get_fullscreen_window()).to(be_equal_to(None));
+                }
+
+                it "should keep the last fullscreen window as fullscreen" {
+                    wm.toggle_fullscreen(1);
+                    wm.toggle_fullscreen(2);
+
+                    expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(2)));
+                }
+            }
+
+            describe! toggle_fullscreen {
+                it "should be able to toggle a fullscreen on" {
+                    wm.toggle_fullscreen(2);
+
+                    expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(2)));
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, screen_geom)]));
+                }
+
+                it "should be able to toggle a fullscreen off" {
+                    wm.toggle_fullscreen(2);
+                    wm.toggle_fullscreen(2);
+
+                    expect!(wm.get_fullscreen_window()).to(be_equal_to(None));
+                    expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(1, left_half),
+                                                                              (3, right_upper_quarter),
+                                                                              (2, right_lower_quarter),
+                                                                              (5, floating_geom)]));
                 }
             }
         }
