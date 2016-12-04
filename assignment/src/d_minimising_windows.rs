@@ -1301,7 +1301,7 @@ mod tests {
                 height: 20,
             };
 
-            let mut wm = FloatingWM::new(screen);
+            let mut wm: MinimisingWM<FloatingWM> = MinimisingWM::new(screen);
 
             // Let's walk through the steps:
             // windows = []
