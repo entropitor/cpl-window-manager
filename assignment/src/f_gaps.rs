@@ -221,16 +221,23 @@ impl TilingWM {
 
     /// Return the geometry for the master window
     fn get_master_geom(&self) -> Geometry {
+        let gap = self.gap_size as c_int;
+
         if self.windows.len() > 1 {
             // There are slaves
             Geometry {
-                x: 0,
-                y: 0,
-                width: (self.screen.width / 2) as c_uint,
-                height: self.screen.height,
+                x: gap,
+                y: gap,
+                width: ((self.screen.width - 4 * self.gap_size) / 2) as c_uint,
+                height: (self.screen.height - 2 * self.gap_size),
             }
         } else {
-            self.screen.to_geometry()
+            Geometry {
+                x: gap,
+                y: gap,
+                width: (self.screen.width - 2 * self.gap_size),
+                height: (self.screen.height - 2 * self.gap_size),
+            }
         }
     }
 
@@ -239,12 +246,15 @@ impl TilingWM {
         let nn = (self.windows.len() - 1) as c_uint;
         let ii = i as c_uint;
         let screen = self.screen;
+        let gap = self.gap_size as c_int;
+        let width = screen.width - 4 * self.gap_size;
+        let height = screen.height - 2 * nn * self.gap_size;
 
         Geometry {
-            x: (screen.width / 2) as c_int,
-            y: ((screen.height / nn) * ii) as c_int,
-            width: screen.width / 2,
-            height: (screen.height / nn) as c_uint,
+            x: gap + (screen.width / 2) as c_int,
+            y: gap + ((screen.height / nn) * ii) as c_int,
+            width: width / 2,
+            height: (height / nn) as c_uint,
         }
     }
 
@@ -299,14 +309,14 @@ mod tests {
             };
             let right_half = Geometry {
                 x: 410,
-                y: 0,
+                y: 10,
                 width: 380,
                 height: 580,
             };
 
             let right_upper_quarter = Geometry {
                 x: 410,
-                y: 0,
+                y: 10,
                 width: 380,
                 height: 280,
             };
@@ -598,23 +608,30 @@ mod tests {
                     width: 200,
                     height: 200
                 };
+                let new_screen_geom = Geometry {
+                    x: 10,
+                    y: 10,
+                    width: 180,
+                    height: 180,
+                };
 
                 let left_half = Geometry {
-                    x: 0, y: 0,
-                    width: new_screen.width/2,
-                    height: new_screen.height,
+                    x: 10,
+                    y: 10,
+                    width: 80,
+                    height: 180,
                 };
                 let right_upper_quarter = Geometry {
-                    x: (new_screen.width/2) as c_int,
-                    y: 0,
-                    width: new_screen.width/2,
-                    height: new_screen.height/2,
+                    x: 110,
+                    y: 10,
+                    width: 80,
+                    height: 80,
                 };
                 let right_lower_quarter = Geometry {
-                    x: (new_screen.width/2) as c_int,
-                    y: (new_screen.height/2) as c_int,
-                    width: new_screen.width/2,
-                    height: new_screen.height/2,
+                    x: 110,
+                    y: 110,
+                    width: 80,
+                    height: 80,
                 };
             }
 
@@ -633,7 +650,7 @@ mod tests {
 
                 let wl = wm.get_window_layout();
 
-                expect!(wl.windows.first().unwrap().1).to(be_equal_to(new_screen.to_geometry()));
+                expect!(wl.windows.first().unwrap().1).to(be_equal_to(new_screen_geom));
             }
 
             it "should use the new screen in get_window_layout if there are more windows" {
@@ -800,6 +817,31 @@ mod tests {
                     let windows = vec![(3, screen_geom)];
                     expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
                 }
+            }
+        }
+
+        describe! gap_support {
+            it "should be able to retrieve the gap" {
+                expect!(wm.get_gap()).to(be_equal_to(10));
+            }
+
+            it "should be able to set a new gap" {
+                wm.set_gap(20);
+
+                expect!(wm.get_gap()).to(be_equal_to(20));
+            }
+
+            it "should use the new gap in the layout" {
+                wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
+
+                wm.set_gap(20);
+
+                expect!(wm.get_window_info(1).unwrap().geometry).to(be_equal_to(Geometry {
+                    x: 20,
+                    y: 20,
+                    width: 760,
+                    height: 560,
+                }));
             }
         }
     }
