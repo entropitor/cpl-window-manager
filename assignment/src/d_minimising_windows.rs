@@ -207,7 +207,6 @@ impl<WrappedWM: WindowManager> MinimiseSupport for MinimisingWM<WrappedWM> {
 }
 
 #[cfg(test)]
-#[allow(unused_must_use)]
 #[allow(unused_mut)]
 #[allow(unused_variables)]
 mod tests {
@@ -340,7 +339,7 @@ mod tests {
 
             it "shouldn't add a minimised window twice" {
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
-                wm.toggle_minimised(1);
+                wm.toggle_minimised(1).unwrap();
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
 
                 let wl = wm.get_window_layout();
@@ -398,7 +397,7 @@ mod tests {
                 wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
                 wm.add_window(WindowWithInfo::new_float(3, floating_geom)).unwrap();
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
-                wm.toggle_minimised(1);
+                wm.toggle_minimised(1).unwrap();
 
                 let wl = wm.get_window_layout();
 
@@ -499,7 +498,7 @@ mod tests {
             it "should remove a floating window correctly" {
                 wm.add_window(WindowWithInfo::new_tiled(1, some_geom)).unwrap();
                 wm.add_window(WindowWithInfo::new_tiled(2, some_geom)).unwrap();
-                wm.toggle_minimised(2);
+                wm.toggle_minimised(2).unwrap();
 
                 wm.remove_window(2).unwrap();
 
@@ -521,7 +520,7 @@ mod tests {
                 wm.add_window(WindowWithInfo::new_tiled(4, some_geom)).unwrap();
 
                 wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
-                wm.toggle_minimised(6);
+                wm.toggle_minimised(6).unwrap();
             }
 
             it "should focus the correct window" {
@@ -576,11 +575,11 @@ mod tests {
                 wm.add_window(WindowWithInfo::new_tiled(4, some_geom)).unwrap();
 
                 wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
-                wm.toggle_minimised(6);
+                wm.toggle_minimised(6).unwrap();
             }
 
             it "should cycle in forward direction" {
-                wm.focus_window(Some(1));
+                wm.focus_window(Some(1)).unwrap();
 
                 wm.cycle_focus(Next);
 
@@ -610,22 +609,22 @@ mod tests {
             }
 
             it "should not focus on a window if none was selected" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
             it "should not focus on a window if there are none" {
-                wm.remove_window(1);
-                wm.remove_window(2);
-                wm.remove_window(3);
-                wm.remove_window(4);
+                wm.remove_window(1).unwrap();
+                wm.remove_window(2).unwrap();
+                wm.remove_window(3).unwrap();
+                wm.remove_window(4).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
             it "should switch between floating windows and tiled windows" {
-                wm.focus_window(Some(3));
+                wm.focus_window(Some(3)).unwrap();
 
                 wm.cycle_focus(Next);
 
@@ -633,7 +632,7 @@ mod tests {
             }
 
             it "should switch between tiled windows and floating windows" {
-                wm.focus_window(Some(4));
+                wm.focus_window(Some(4)).unwrap();
 
                 wm.cycle_focus(Next);
 
@@ -682,7 +681,7 @@ mod tests {
             }
 
             it "should work if there is no focused window" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 let info = wm.get_window_info(2).unwrap();
 
@@ -701,7 +700,7 @@ mod tests {
             }
 
             it "should work with 1 window" {
-                wm.remove_window(2);
+                wm.remove_window(2).unwrap();
 
                 let info = wm.get_window_info(1).unwrap();
 
@@ -747,7 +746,7 @@ mod tests {
 
             it "should work with a minimized tiled window" {
                 wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
-                wm.toggle_minimised(6);
+                wm.toggle_minimised(6).unwrap();
 
                 let info = wm.get_window_info(6).unwrap();
 
@@ -761,7 +760,7 @@ mod tests {
 
             it "should work with a minimized floating window" {
                 wm.add_window(WindowWithInfo::new_float(6, some_geom)).unwrap();
-                wm.toggle_minimised(6);
+                wm.toggle_minimised(6).unwrap();
 
                 let info = wm.get_window_info(6).unwrap();
 
@@ -844,9 +843,9 @@ mod tests {
                     wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
                     wm.add_window(WindowWithInfo::new_float(5, some_geom)).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(6).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
 
                     let master = wm.get_master_window();
 
@@ -856,9 +855,9 @@ mod tests {
                 it "should return none if there is no master window" {
                     wm.add_window(WindowWithInfo::new_float(5, some_geom)).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(6).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
 
                     let master = wm.get_master_window();
 
@@ -875,9 +874,9 @@ mod tests {
                 }
 
                 it "should be able to swap a float with master" {
-                    wm.remove_window(2);
+                    wm.remove_window(2).unwrap();
 
-                    wm.swap_with_master(5);
+                    wm.swap_with_master(5).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(5)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(5)));
@@ -887,10 +886,10 @@ mod tests {
                 }
 
                 it "should be able to swap a minimised float with master" {
-                    wm.remove_window(2);
-                    wm.toggle_minimised(5);
+                    wm.remove_window(2).unwrap();
+                    wm.toggle_minimised(5).unwrap();
 
-                    wm.swap_with_master(5);
+                    wm.swap_with_master(5).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(5)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(5)));
@@ -901,7 +900,7 @@ mod tests {
 
 
                 it "should be able to swap a tiled with master" {
-                    wm.swap_with_master(2);
+                    wm.swap_with_master(2).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(2)));
@@ -912,9 +911,9 @@ mod tests {
                 }
 
                 it "should be able to swap a minimised tiled with master" {
-                    wm.toggle_minimised(2);
+                    wm.toggle_minimised(2).unwrap();
 
-                    wm.swap_with_master(2);
+                    wm.swap_with_master(2).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(2)));
@@ -925,7 +924,7 @@ mod tests {
                 }
 
                 it "should focus the master tile if it is already the master window" {
-                    wm.swap_with_master(1);
+                    wm.swap_with_master(1).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(1)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(1)));
@@ -948,13 +947,13 @@ mod tests {
                     wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
 
                     wm.add_window(WindowWithInfo::new_float(6, some_geom)).unwrap();
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(6).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
                 }
 
                 it "should be able to swap the focussed window with another window in forward direction" {
-                    wm.focus_window(Some(2));
+                    wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -966,7 +965,7 @@ mod tests {
                 }
 
                 it "should be able to swap the focussed window with another window in backward direction" {
-                    wm.focus_window(Some(2));
+                    wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Prev);
 
@@ -988,7 +987,7 @@ mod tests {
                 }
 
                 it "should cycle the swap in backward direction" {
-                    wm.focus_window(Some(1));
+                    wm.focus_window(Some(1)).unwrap();
 
                     wm.swap_windows(Prev);
 
@@ -1000,7 +999,7 @@ mod tests {
                 }
 
                 it "shouldn't do anything if there is no focused window" {
-                    wm.focus_window(None);
+                    wm.focus_window(None).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -1035,8 +1034,8 @@ mod tests {
                 }
 
                 it "shouldn't do anything if calling with only one tiled window" {
-                    wm.remove_window(1);
-                    wm.remove_window(2);
+                    wm.remove_window(1).unwrap();
+                    wm.remove_window(2).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -1056,7 +1055,7 @@ mod tests {
                 wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
 
                 wm.add_window(WindowWithInfo::new_float(6, some_geom)).unwrap();
-                wm.toggle_minimised(6);
+                wm.toggle_minimised(6).unwrap();
             }
 
             it "should return the floating windows" {
@@ -1065,27 +1064,27 @@ mod tests {
 
             describe! toggle_floating {
                 it "should be able to toggle floating windows on" {
-                    wm.toggle_floating(1);
+                    wm.toggle_floating(1).unwrap();
 
                     expect!(wm.is_floating(1)).to(be_true());
                     expect!(wm.get_window_layout().windows.iter().find(|&&(w, _geom)| w == 1).unwrap().1).to(be_equal_to(some_geom));
                 }
                 it "should be able to toggle floating windows off" {
-                    wm.toggle_floating(4);
+                    wm.toggle_floating(4).unwrap();
 
                     expect!(wm.is_floating(4)).to(be_false());
                 }
 
                 it "should be able to toggle floating on for minimised windows" {
-                    wm.toggle_minimised(3);
-                    wm.toggle_floating(3);
+                    wm.toggle_minimised(3).unwrap();
+                    wm.toggle_floating(3).unwrap();
 
                     expect!(wm.is_floating(3)).to(be_true());
                     expect!(wm.get_window_layout().windows.iter().find(|&&(w, _geom)| w == 3).unwrap().1).to(be_equal_to(right_lower_quarter));
                 }
 
                 it "should be able to toggle floating off for minimised windows" {
-                    wm.toggle_floating(6);
+                    wm.toggle_floating(6).unwrap();
 
                     expect!(wm.is_floating(6)).to(be_false());
                 }
@@ -1114,7 +1113,7 @@ mod tests {
 
                 it "should be able to set a new window geometry for minimised tiled windows" {
                     wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
                     wm.set_window_geometry(7, floating_geom).unwrap();
 
                     expect!(wm.get_window_info(7).unwrap().geometry).to(be_equal_to(floating_geom));
@@ -1136,7 +1135,7 @@ mod tests {
 
                 it "should return singleton if there is one" {
                     wm.add_window(WindowWithInfo::new_float(6, some_geom)).unwrap();
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(6).unwrap();
 
                     expect!(wm.get_minimised_windows()).to(be_equal_to(vec![6]));
                     expect!(wm.is_minimised(6)).to(be_true());
@@ -1144,9 +1143,9 @@ mod tests {
 
                 it "should return them in order of minimising (works for float, tiled)" {
                     wm.add_window(WindowWithInfo::new_float(6, some_geom)).unwrap();
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(6).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
 
                     expect!(wm.get_minimised_windows()).to(be_equal_to(vec![6, 7]));
                     expect!(wm.is_minimised(6)).to(be_true());
@@ -1155,9 +1154,9 @@ mod tests {
 
                 it "should return them in order of minimising (works for tiled, float)" {
                     wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(6).unwrap();
                     wm.add_window(WindowWithInfo::new_float(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
 
                     expect!(wm.get_minimised_windows()).to(be_equal_to(vec![6, 7]));
                     expect!(wm.is_minimised(6)).to(be_true());
@@ -1166,10 +1165,10 @@ mod tests {
 
                 it "should return singleton if there were two but one got unminised" {
                     wm.add_window(WindowWithInfo::new_float(6, some_geom)).unwrap();
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(6).unwrap();
                     wm.add_window(WindowWithInfo::new_tiled(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
-                    wm.toggle_minimised(6);
+                    wm.toggle_minimised(7).unwrap();
+                    wm.toggle_minimised(6).unwrap();
 
                     expect!(wm.get_minimised_windows()).to(be_equal_to(vec![7]));
                     expect!(wm.is_minimised(6)).to(be_false());
@@ -1179,7 +1178,7 @@ mod tests {
 
             describe! toggle_minimised {
                 it "should be able to toggle minimisation on for a tiled window" {
-                    wm.toggle_minimised(3);
+                    wm.toggle_minimised(3).unwrap();
 
                     expect!(wm.is_managed(3)).to(be_true());
                     expect!(wm.is_minimised(3)).to(be_true());
@@ -1195,8 +1194,8 @@ mod tests {
                 }
 
                 it "should be able to toggle minimisation off for a tiled window" {
-                    wm.toggle_minimised(1);
-                    wm.toggle_minimised(1);
+                    wm.toggle_minimised(1).unwrap();
+                    wm.toggle_minimised(1).unwrap();
 
                     expect!(wm.is_managed(1)).to(be_true());
                     expect!(wm.is_minimised(1)).to(be_false());
@@ -1212,7 +1211,7 @@ mod tests {
 
                 it "should be able to toggle minimisation on for a floating window" {
                     wm.add_window(WindowWithInfo::new_float(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
 
                     expect!(wm.is_managed(7)).to(be_true());
                     expect!(wm.is_minimised(7)).to(be_true());
@@ -1229,8 +1228,8 @@ mod tests {
 
                 it "should be able to toggle minimisation off for a floating window" {
                     wm.add_window(WindowWithInfo::new_float(7, some_geom)).unwrap();
-                    wm.toggle_minimised(7);
-                    wm.toggle_minimised(7);
+                    wm.toggle_minimised(7).unwrap();
+                    wm.toggle_minimised(7).unwrap();
 
                     expect!(wm.is_managed(7)).to(be_true());
                     expect!(wm.is_minimised(7)).to(be_false());
@@ -1348,22 +1347,22 @@ mod tests {
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_quarter), (6, right_lower_quarter), (1, floating_geom), (3, floating_geom), (5, floating_geom)]));
 
             // toggle_floating(3)
-            wm.toggle_floating(3);
+            wm.toggle_floating(3).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (6, slave_geometry), (3, slave_geometry), (1, float_geometry), (5, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (6, right_middle_sixth), (3, right_lower_sixth), (1, floating_geom), (5, floating_geom)]));
 
             // toggle_floating(6)
-            wm.toggle_floating(6);
+            wm.toggle_floating(6).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, float_geometry), (5, float_geometry), (6, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_quarter), (3, right_lower_quarter), (1, floating_geom), (5, floating_geom), (6, some_geom)]));
 
             // toggle_floating(1)
-            wm.toggle_floating(1);
+            wm.toggle_floating(1).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (5, float_geometry), (6, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (5, floating_geom), (6, some_geom)]));
 
             // focus_window(Some(5))
-            wm.focus_window(Some(5));
+            wm.focus_window(Some(5)).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (6, float_geometry), (5, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (6, some_geom), (5, floating_geom)]));
         }
