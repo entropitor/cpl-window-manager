@@ -25,7 +25,7 @@
 //!
 
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
-use cplwm_api::wm::{FullscreenSupport, MinimiseSupport, FloatSupport, TilingSupport, WindowManager};
+use cplwm_api::wm::{FloatSupport, FullscreenSupport, MinimiseSupport, TilingSupport, WindowManager};
 
 use d_minimising_windows::WMName as MinimisingWM;
 
@@ -81,7 +81,7 @@ impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
     /// (unless the window was already added)
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
         if self.is_managed(window_with_info.window) {
-            return Ok(())
+            return Ok(());
         }
 
         self.un_fullscreen();
@@ -106,9 +106,11 @@ impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
     /// If there is a fullscreen window, it has focus
     fn get_window_layout(&self) -> WindowLayout {
         self.get_fullscreen_window()
-            .map(|w| WindowLayout {
-                windows: vec![(w, self.get_screen().to_geometry())],
-                focused_window: Some(w)
+            .map(|w| {
+                WindowLayout {
+                    windows: vec![(w, self.get_screen().to_geometry())],
+                    focused_window: Some(w),
+                }
             })
             .unwrap_or_else(|| self.wrapped_wm.get_window_layout())
     }

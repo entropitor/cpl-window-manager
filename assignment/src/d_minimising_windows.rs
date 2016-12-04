@@ -23,7 +23,7 @@
 //!
 
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
-use cplwm_api::wm::{MinimiseSupport, FloatSupport, TilingSupport, WindowManager};
+use cplwm_api::wm::{FloatSupport, MinimiseSupport, TilingSupport, WindowManager};
 use std::collections::HashMap;
 
 use c_floating_windows::WMName as FloatWM;
@@ -63,7 +63,7 @@ impl<WrappedWM: WindowManager> WindowManager for MinimisingWM<WrappedWM> {
     }
 
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
-        if !self.is_minimised(window_with_info.window){
+        if !self.is_minimised(window_with_info.window) {
             self.wrapped_wm.add_window(window_with_info)
         } else {
             Ok(())
@@ -71,7 +71,7 @@ impl<WrappedWM: WindowManager> WindowManager for MinimisingWM<WrappedWM> {
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
-        if !self.is_minimised(window){
+        if !self.is_minimised(window) {
             self.wrapped_wm.remove_window(window)
         } else {
             self.infos.remove(&window);
@@ -107,7 +107,7 @@ impl<WrappedWM: WindowManager> WindowManager for MinimisingWM<WrappedWM> {
     }
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
-        if self.is_minimised(window){
+        if self.is_minimised(window) {
             // if the window is minimised, it's part of the infos hashmap
             Ok(self.infos.get(&window).map(|info| *info).unwrap())
         } else {

@@ -331,13 +331,14 @@ impl FloatingWM {
         let window_info = self.infos.get(&window).map(|info| info.clone());
 
         window_info.map(|mut info| {
-            info.float_or_tile = float_or_tile;
-            info
-        }).ok_or(UnknownWindow(*window))
-        .and_then(|wi| {
-            try!(self.remove_window(*window));
-            self.add_window(wi)
-        })
+                info.float_or_tile = float_or_tile;
+                info
+            })
+            .ok_or(UnknownWindow(*window))
+            .and_then(|wi| {
+                try!(self.remove_window(*window));
+                self.add_window(wi)
+            })
     }
 }
 
