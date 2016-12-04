@@ -150,7 +150,6 @@ impl WindowManager for FullscreenWM {
 }
 
 #[cfg(test)]
-#[allow(unused_must_use)]
 #[allow(unused_mut)]
 #[allow(unused_variables)]
 mod tests {
@@ -334,16 +333,16 @@ mod tests {
             }
 
             it "should not focus on a window if none was selected" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
             it "should not focus on a window if there are none" {
-                wm.remove_window(1);
-                wm.remove_window(2);
-                wm.remove_window(3);
-                wm.remove_window(4);
+                wm.remove_window(1).unwrap();
+                wm.remove_window(2).unwrap();
+                wm.remove_window(3).unwrap();
+                wm.remove_window(4).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
@@ -378,7 +377,7 @@ mod tests {
             }
 
             it "should work if there is no visible window" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 let info = wm.get_window_info(2).unwrap();
 
