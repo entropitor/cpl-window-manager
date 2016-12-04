@@ -16,7 +16,8 @@
 //!
 //! COMMENTS:
 //!
-//! A lot of code (+ tests) were copied from assignment b
+//! The tests were copied from assignment b except for the geometries
+//! The code was copied from assignment b, except for the get_geom* functions
 //!
 
 use std::os::raw::{c_int, c_uint};
@@ -193,7 +194,7 @@ impl TilingSupport for TilingWM {
 
 impl GapSupport for TilingWM {
     fn get_gap(&self) -> GapSize {
-        return self.gap_size;
+        self.gap_size
     }
 
     fn set_gap(&mut self, gapsize: GapSize) {

@@ -30,18 +30,227 @@
 //! ...
 //!
 
-// Add imports here
+use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, WorkspaceIndex, MAX_WORKSPACE_INDEX, GapSize};
+use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager};
 
+use e_fullscreen_windows::WMName as FullscreenWM;
 
-/// **TODO**: You are free to choose the name for your window manager. As we
-/// will use automated tests when grading your assignment, indicate here the
-/// name of your window manager data type so we can just use `WMName` instead
-/// of having to manually figure out your window manager name.
-///
-/// Replace `()` with the name of your window manager data type.
-///
-/// Replace the `WM` type parameter with the name of the window manager from
-/// assignment E or the window manager of the last assignment you completed
-/// (except F). E.g. use `type WMName =
-/// MultiWorkspaceWM<e_fullscreen_windows::WMName>`.
-pub type WMName = ();
+/// Type alias for automated tests
+pub type WMName = WorkspaceWM<FullscreenWM>;
+
+/// Main struct of the window manager
+/// This WM has multiple workspaces. Each workspace uses a different WM
+#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
+pub struct WorkspaceWM<WrappedWM: WindowManager> {
+    /// The index of the current workspace
+    pub current_workspace: WorkspaceIndex,
+    /// The list of wrapped window managers
+    pub wrapped_wms: Vec<WrappedWM>,
+}
+
+impl<WrappedWM: WindowManager> WorkspaceWM<WrappedWM> {
+    /// Get the wm for the current workspace
+    fn get_current_wm(&self) -> &WrappedWM {
+        &self.wrapped_wms[self.current_workspace]
+    }
+
+    /// Get the wm for the current workspace
+    fn get_current_mutable_wm(&mut self) -> &mut WrappedWM {
+        &mut self.wrapped_wms[self.current_workspace]
+    }
+
+    /// Get the index of the wm for the given window
+    /// (or the current_workspace index if the window is not managed by this WM)
+    fn get_index_for_window(&self, window: Window) -> WorkspaceIndex {
+        if self.is_managed(window) {
+            let ref wms = self.wrapped_wms;
+            wms
+                .into_iter()
+                .position(|wm| wm.is_managed(window))
+                // we can unwrap because it is managed by some wm
+                .unwrap()
+        } else {
+            self.current_workspace
+        }
+    }
+
+    /// Gets the WM that manages the given window,
+    /// or the current workspace in case the window is not managed by this WM
+    fn get_wm_for_window(&self, window: Window) -> &WrappedWM {
+        let pos = self.get_index_for_window(window);
+        &self.wrapped_wms[pos]
+    }
+
+    /// Gets the WM that manages the given window,
+    /// or the current workspace in case the window is not managed by this WM
+    fn get_mutable_wm_for_window(&mut self, window: Window) -> &mut WrappedWM {
+        let pos = self.get_index_for_window(window);
+        &mut self.wrapped_wms[pos]
+    }
+
+    fn get_mutable_wm_for_window_and_switch(&mut self, window: Window) -> &mut WrappedWM {
+        let pos = self.get_index_for_window(window);
+        self.current_workspace = pos;
+        &mut self.wrapped_wms[pos]
+    }
+}
+
+impl<WrappedWM: WindowManager> WindowManager for WorkspaceWM<WrappedWM> {
+    /// We use the Error from the WrappedWM as our Error type.
+    type Error = WrappedWM::Error;
+
+    fn new(screen: Screen) -> WorkspaceWM<WrappedWM> {
+        WorkspaceWM {
+            current_workspace: 0,
+            wrapped_wms: (0..MAX_WORKSPACE_INDEX).map(|_| WrappedWM::new(screen)).collect(),
+        }
+    }
+
+    fn get_windows(&self) -> Vec<Window> {
+        let mut windows = vec![];
+
+        let ref wms = self.wrapped_wms;
+        for wm in wms {
+            windows.extend(wm.get_windows());
+        }
+
+        windows
+    }
+
+    fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
+        self.get_current_mutable_wm()
+            .add_window(window_with_info)
+    }
+
+    fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
+        self.get_mutable_wm_for_window(window)
+            .remove_window(window)
+    }
+
+    fn get_window_layout(&self) -> WindowLayout {
+        self.get_current_wm()
+            .get_window_layout()
+    }
+
+    /// Will switch workspace if the window is not in the current workspace
+    fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
+        match window {
+            None => {
+                self.get_current_mutable_wm().focus_window(window)
+            },
+            Some(w) => {
+                self.get_mutable_wm_for_window_and_switch(w)
+                    .focus_window(window)
+            },
+        }
+    }
+
+    fn cycle_focus(&mut self, dir: PrevOrNext) {
+        self.get_current_mutable_wm()
+            .cycle_focus(dir)
+    }
+
+    fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
+        self.get_wm_for_window(window)
+            .get_window_info(window)
+    }
+
+    fn get_screen(&self) -> Screen {
+        self.get_current_wm().get_screen()
+    }
+
+    fn resize_screen(&mut self, screen: Screen) {
+        let ref mut wms = self.wrapped_wms;
+        for wm in wms {
+            wm.resize_screen(screen)
+        };
+    }
+
+    fn get_focused_window(&self) -> Option<Window> {
+        self.get_current_wm()
+            .get_focused_window()
+    }
+
+    fn is_managed(&self, window: Window) -> bool {
+        self.wrapped_wms
+            .iter()
+            .any(|wm| wm.is_managed(window))
+    }
+}
+
+impl<WrappedWM: TilingSupport> TilingSupport for WorkspaceWM<WrappedWM> {
+    fn get_master_window(&self) -> Option<Window> {
+        self.get_current_wm()
+            .get_master_window()
+    }
+
+    fn swap_with_master(&mut self, window: Window) -> Result<(), Self::Error> {
+        self.get_current_mutable_wm()
+            .swap_with_master(window)
+    }
+
+    fn swap_windows(&mut self, dir: PrevOrNext) {
+        self.get_current_mutable_wm()
+            .swap_windows(dir)
+    }
+}
+
+impl<WrappedWM: FloatSupport> FloatSupport for WorkspaceWM<WrappedWM> {
+    fn get_floating_windows(&self) -> Vec<Window> {
+        self.get_current_wm()
+            .get_floating_windows()
+    }
+
+    fn toggle_floating(&mut self, window: Window) -> Result<(), Self::Error> {
+        self.get_current_mutable_wm()
+            .toggle_floating(window)
+    }
+
+    fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
+        self.get_mutable_wm_for_window(window)
+            .set_window_geometry(window, new_geometry)
+    }
+}
+
+impl<WrappedWM: MinimiseSupport> MinimiseSupport for WorkspaceWM<WrappedWM> {
+    fn get_minimised_windows(&self) -> Vec<Window> {
+        self.get_current_wm()
+            .get_minimised_windows()
+    }
+
+    fn toggle_minimised(&mut self, window: Window) -> Result<(), Self::Error> {
+        self.get_current_mutable_wm()
+            .toggle_minimised(window)
+    }
+
+    // fn is_minimised(&self, window: Window) -> bool {
+    //     self.get_wm_for_window(window)
+    //         .is_minimised(window)
+    // }
+}
+
+impl<WrappedWM: FullscreenSupport> FullscreenSupport for WorkspaceWM<WrappedWM> {
+    fn get_fullscreen_window(&self) -> Option<Window> {
+        self.get_current_wm()
+            .get_fullscreen_window()
+    }
+
+    fn toggle_fullscreen(&mut self, window: Window) -> Result<(), Self::Error> {
+        self.get_mutable_wm_for_window_and_switch(window)
+            .toggle_fullscreen(window)
+    }
+}
+
+impl<WrappedWM: GapSupport> GapSupport for WorkspaceWM<WrappedWM> {
+    fn get_gap(&self) -> GapSize {
+        self.get_current_wm()
+            .get_gap()
+    }
+
+    fn set_gap(&mut self, gap_size: GapSize) {
+        let ref mut wms = self.wrapped_wms;
+        for wm in wms {
+            wm.set_gap(gap_size)
+        };
+    }
+}
