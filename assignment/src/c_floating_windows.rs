@@ -343,7 +343,6 @@ impl FloatingWM {
 }
 
 #[cfg(test)]
-#[allow(unused_must_use)]
 #[allow(unused_mut)]
 #[allow(unused_variables)]
 mod tests {
@@ -657,7 +656,7 @@ mod tests {
             }
 
             it "should cycle in forward direction" {
-                wm.focus_window(Some(1));
+                wm.focus_window(Some(1)).unwrap();
 
                 wm.cycle_focus(Next);
 
@@ -687,22 +686,22 @@ mod tests {
             }
 
             it "should not focus on a window if none was selected" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
             it "should not focus on a window if there are none" {
-                wm.remove_window(1);
-                wm.remove_window(2);
-                wm.remove_window(3);
-                wm.remove_window(4);
+                wm.remove_window(1).unwrap();
+                wm.remove_window(2).unwrap();
+                wm.remove_window(3).unwrap();
+                wm.remove_window(4).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
             it "should switch between floating windows and tiled windows" {
-                wm.focus_window(Some(3));
+                wm.focus_window(Some(3)).unwrap();
 
                 wm.cycle_focus(Next);
 
@@ -710,7 +709,7 @@ mod tests {
             }
 
             it "should switch between tiled windows and floating windows" {
-                wm.focus_window(Some(4));
+                wm.focus_window(Some(4)).unwrap();
 
                 wm.cycle_focus(Next);
 
@@ -759,7 +758,7 @@ mod tests {
             }
 
             it "should work if there is no focused window" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 let info = wm.get_window_info(2).unwrap();
 
@@ -778,7 +777,7 @@ mod tests {
             }
 
             it "should work with 1 window" {
-                wm.remove_window(2);
+                wm.remove_window(2).unwrap();
 
                 let info = wm.get_window_info(1).unwrap();
 
@@ -916,9 +915,9 @@ mod tests {
                 }
 
                 it "should be able to swap a float with master" {
-                    wm.remove_window(2);
+                    wm.remove_window(2).unwrap();
 
-                    wm.swap_with_master(5);
+                    wm.swap_with_master(5).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(5)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(5)));
@@ -928,7 +927,7 @@ mod tests {
                 }
 
                 it "should be able to swap with master" {
-                    wm.swap_with_master(2);
+                    wm.swap_with_master(2).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(2)));
@@ -939,7 +938,7 @@ mod tests {
                 }
 
                 it "should focus the master tile if it is already the master window" {
-                    wm.swap_with_master(1);
+                    wm.swap_with_master(1).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(1)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(1)));
@@ -963,7 +962,7 @@ mod tests {
                 }
 
                 it "should be able to swap the focussed window with another window in forward direction" {
-                    wm.focus_window(Some(2));
+                    wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -975,7 +974,7 @@ mod tests {
                 }
 
                 it "should be able to swap the focussed window with another window in backward direction" {
-                    wm.focus_window(Some(2));
+                    wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Prev);
 
@@ -997,7 +996,7 @@ mod tests {
                 }
 
                 it "should cycle the swap in backward direction" {
-                    wm.focus_window(Some(1));
+                    wm.focus_window(Some(1)).unwrap();
 
                     wm.swap_windows(Prev);
 
@@ -1009,7 +1008,7 @@ mod tests {
                 }
 
                 it "shouldn't do anything if there is no focused window" {
-                    wm.focus_window(None);
+                    wm.focus_window(None).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -1044,8 +1043,8 @@ mod tests {
                 }
 
                 it "shouldn't do anything if calling with only one tiled window" {
-                    wm.remove_window(1);
-                    wm.remove_window(2);
+                    wm.remove_window(1).unwrap();
+                    wm.remove_window(2).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -1071,13 +1070,13 @@ mod tests {
 
             describe! toggle_floating {
                 it "should be able to toggle floating windows on" {
-                    wm.toggle_floating(1);
+                    wm.toggle_floating(1).unwrap();
 
                     expect!(wm.is_floating(1)).to(be_true());
                     expect!(wm.get_window_layout().windows.iter().find(|&&(w, _geom)| w == 1).unwrap().1).to(be_equal_to(some_geom));
                 }
                 it "should be able to toggle floating windows off" {
-                    wm.toggle_floating(4);
+                    wm.toggle_floating(4).unwrap();
 
                     expect!(wm.is_floating(4)).to(be_false());
                 }
@@ -1200,22 +1199,22 @@ mod tests {
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_quarter), (6, right_lower_quarter), (1, floating_geom), (3, floating_geom), (5, floating_geom)]));
 
             // toggle_floating(3)
-            wm.toggle_floating(3);
+            wm.toggle_floating(3).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (6, slave_geometry), (3, slave_geometry), (1, float_geometry), (5, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (6, right_middle_sixth), (3, right_lower_sixth), (1, floating_geom), (5, floating_geom)]));
 
             // toggle_floating(6)
-            wm.toggle_floating(6);
+            wm.toggle_floating(6).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, float_geometry), (5, float_geometry), (6, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_quarter), (3, right_lower_quarter), (1, floating_geom), (5, floating_geom), (6, some_geom)]));
 
             // toggle_floating(1)
-            wm.toggle_floating(1);
+            wm.toggle_floating(1).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (5, float_geometry), (6, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (5, floating_geom), (6, some_geom)]));
 
             // focus_window(Some(5))
-            wm.focus_window(Some(5));
+            wm.focus_window(Some(5)).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (6, float_geometry), (5, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (6, some_geom), (5, floating_geom)]));
         }
