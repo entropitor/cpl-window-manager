@@ -12,13 +12,7 @@
 //!
 //! # Status
 //!
-//! **TODO**: Replace the question mark below with YES, NO, or PARTIAL to
-//! indicate the status of this assignment. If you want to tell something
-//! about this assignment to the grader, e.g., you have a bug you can't fix,
-//! or you want to explain your approach, write it down after the comments
-//! section.
-//!
-//! COMPLETED: ?
+//! COMPLETED: YES
 //!
 //! COMMENTS:
 //!
@@ -26,7 +20,7 @@
 //!
 
 use std::os::raw::{c_int, c_uint};
-use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, GapSize};
+use cplwm_api::types::{GapSize, Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 pub use cplwm_api::types::FloatOrTile::*;
 use cplwm_api::wm::{GapSupport, TilingSupport, WindowManager};
@@ -199,10 +193,10 @@ impl TilingSupport for TilingWM {
 
 impl GapSupport for TilingWM {
     fn get_gap(&self) -> GapSize {
-        return self.gap_size
+        return self.gap_size;
     }
 
-    fn set_gap(&mut self, gapsize: GapSize){
+    fn set_gap(&mut self, gapsize: GapSize) {
         self.gap_size = gapsize;
     }
 }
