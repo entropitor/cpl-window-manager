@@ -251,7 +251,6 @@ impl TilingWM {
 }
 
 #[cfg(test)]
-#[allow(unused_must_use)]
 #[allow(unused_mut)]
 #[allow(unused_variables)]
 mod tests {
@@ -478,16 +477,16 @@ mod tests {
             }
 
             it "should not focus on a window if none was selected" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
 
             it "should not focus on a window if there are none" {
-                wm.remove_window(1);
-                wm.remove_window(2);
-                wm.remove_window(3);
-                wm.remove_window(4);
+                wm.remove_window(1).unwrap();
+                wm.remove_window(2).unwrap();
+                wm.remove_window(3).unwrap();
+                wm.remove_window(4).unwrap();
 
                 expect!(wm.get_focused_window()).to(be_equal_to(None));
             }
@@ -522,7 +521,7 @@ mod tests {
             }
 
             it "should work if there is no focused window" {
-                wm.focus_window(None);
+                wm.focus_window(None).unwrap();
 
                 let info = wm.get_window_info(2).unwrap();
 
@@ -541,7 +540,7 @@ mod tests {
             }
 
             it "should work with 1 window" {
-                wm.remove_window(2);
+                wm.remove_window(2).unwrap();
 
                 let info = wm.get_window_info(1).unwrap();
 
@@ -664,7 +663,7 @@ mod tests {
                 }
 
                 it "should be able to swap with master" {
-                    wm.swap_with_master(2);
+                    wm.swap_with_master(2).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(2)));
@@ -675,7 +674,7 @@ mod tests {
                 }
 
                 it "should focus the master tile if it is already the master window" {
-                    wm.swap_with_master(1);
+                    wm.swap_with_master(1).unwrap();
 
                     expect!(wm.get_focused_window()).to(be_equal_to(Some(1)));
                     expect!(wm.get_master_window()).to(be_equal_to(Some(1)));
@@ -698,7 +697,7 @@ mod tests {
                 }
 
                 it "should be able to swap the focussed window with another window in forward direction" {
-                    wm.focus_window(Some(2));
+                    wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -710,7 +709,7 @@ mod tests {
                 }
 
                 it "should be able to swap the focussed window with another window in backward direction" {
-                    wm.focus_window(Some(2));
+                    wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Prev);
 
@@ -732,7 +731,7 @@ mod tests {
                 }
 
                 it "should cycle the swap in backward direction" {
-                    wm.focus_window(Some(1));
+                    wm.focus_window(Some(1)).unwrap();
 
                     wm.swap_windows(Prev);
 
@@ -744,7 +743,7 @@ mod tests {
                 }
 
                 it "shouldn't do anything if there is no focused window" {
-                    wm.focus_window(None);
+                    wm.focus_window(None).unwrap();
 
                     wm.swap_windows(Next);
 
@@ -778,8 +777,8 @@ mod tests {
                 }
 
                 it "shouldn't do anything if calling with only one window" {
-                    wm.remove_window(1);
-                    wm.remove_window(2);
+                    wm.remove_window(1).unwrap();
+                    wm.remove_window(2).unwrap();
 
                     wm.swap_windows(Next);
 
