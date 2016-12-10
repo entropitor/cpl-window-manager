@@ -43,9 +43,11 @@ pub type WMName = FloatingWM;
 /// This WM can float or tile windows
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 pub struct FloatingWM {
-    /// A vector of floating windows
+    /// A vector of floating windows (in order of adding them)
     pub floating_windows: Vec<Window>,
-    /// The index of the focused window.
+    /// A vector of floating windows (in order of visibility)
+    pub stack_order_floating_windows: Vec<Window>,
+    /// The index of the focused window in the floating_windows vec.
     /// If the index is larger than the nb of floating windows, the focused window is tiled.
     pub focused_index: Option<usize>,
     /// The wrapped window manager that takes care of the tiled windows
@@ -61,6 +63,7 @@ impl WindowManager for FloatingWM {
     fn new(screen: Screen) -> FloatingWM {
         FloatingWM {
             floating_windows: Vec::new(),
+            stack_order_floating_windows: Vec::new(),
             focused_index: None,
             tiling_wm: TilingWM::new(screen),
             infos: HashMap::new(),
@@ -79,6 +82,7 @@ impl WindowManager for FloatingWM {
             match window_with_info.float_or_tile {
                 Float => {
                     self.floating_windows.push(window_with_info.window);
+                    self.stack_order_floating_windows.push(window_with_info.window);
                 }
                 Tile => {
                     try!(self.tiling_wm.add_window(window_with_info));
@@ -121,6 +125,11 @@ impl WindowManager for FloatingWM {
                     }
                 })
         } else {
+            self.stack_order_floating_windows
+                .iter()
+                .position(|w| *w == window)
+                .map(|i| self.stack_order_floating_windows.remove(i));
+
             self.floating_windows
                 .iter()
                 .position(|w| *w == window)
@@ -153,14 +162,9 @@ impl WindowManager for FloatingWM {
             let mut windows: Vec<(Window, Geometry)> = self.tiling_wm
                 .get_window_layout()
                 .windows;
-            windows.extend(self.floating_windows
+            windows.extend(self.stack_order_floating_windows
                 .iter()
-                .filter(|w| Some(**w) != focused_window)
                 .map(|w| (*w, self.get_geom(&w))));
-            // Put the focused window on top (if it's floating)
-            focused_window.map(|w| if self.is_floating(w) {
-                windows.push((w, self.get_geom(&w)))
-            });
 
             WindowLayout {
                 focused_window: focused_window,
@@ -181,7 +185,12 @@ impl WindowManager for FloatingWM {
                     self.focused_index = self.tiling_wm.focused_index.map(|i| self.floating_windows.len() + i);
                     result
                 } else if self.is_managed(w) {
-                    // Set focused index to the position of the window passed along
+                    // w is managed so we can safely unwrap
+                    let index = self.stack_order_floating_windows.iter().position(|w2| *w2 == w).unwrap();
+
+                    self.stack_order_floating_windows.remove(index);
+                    self.stack_order_floating_windows.push(w);
+
                     self.focused_index = self.floating_windows.iter().position(|w2| *w2 == w);
                     Ok(())
                 } else {
@@ -203,6 +212,11 @@ impl WindowManager for FloatingWM {
                 self.tiling_wm.focused_index = Some(i - self.floating_windows.len());
             }
         }
+
+        // Call focus_window to shift the order of the windows if necessary
+        let focused_window = self.get_focused_window();
+        // Focused window is managed so we can safely unwrap
+        self.focus_window(focused_window).unwrap();
     }
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
@@ -277,13 +291,19 @@ impl FloatSupport for FloatingWM {
             return Err(UnknownWindow(window));
         }
 
+        let current_focused_index = self.focused_index;
+
         let float_or_tile = if self.is_floating(window) {
             Tile
         } else {
             Float
         };
 
-        self.float_or_tile_window(&window, float_or_tile)
+        try!(self.float_or_tile_window(&window, float_or_tile));
+
+        // Refocus the old focused window. Necessary according to forum
+        self.focused_index = current_focused_index;
+        Ok(())
     }
 
     fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
@@ -1109,7 +1129,7 @@ mod tests {
     }
 
     describe! integration_test {
-        it "should work with the example from the forum" {
+        before_each {
             let screen: Screen = Screen {
                 width: 800,
                 height: 600,
@@ -1173,7 +1193,9 @@ mod tests {
             };
 
             let mut wm = FloatingWM::new(screen);
+        }
 
+        it "should work with the example from the forum" {
             // Let's walk through the steps:
             // windows = []
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![]));
@@ -1227,6 +1249,50 @@ mod tests {
             wm.focus_window(Some(5)).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (6, float_geometry), (5, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (6, some_geom), (5, floating_geom)]));
+        }
+
+        it "should work with a second example from the forum" {
+            wm.add_window(WindowWithInfo::new_tiled(4, some_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_tiled(5, some_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_float(1, floating_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_float(2, floating_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_float(3, floating_geom)).unwrap();
+
+            wm.toggle_floating(4).unwrap();
+            wm.toggle_floating(5).unwrap();
+            wm.toggle_floating(6).unwrap();
+
+            let wl = wm.get_window_layout();
+            expect(wl.windows).to(be_equal_to(vec![(1, floating_geom),
+                                                   (2, floating_geom),
+                                                   (3, floating_geom),
+                                                   (4, some_geom),
+                                                   (5, some_geom),
+                                                   (6, some_geom)]));
+            expect(wl.focused_window).to(be_equal_to(Some(3)));
+
+            wm.cycle_focus(Next);
+
+            let wl2 = wm.get_window_layout();
+            expect(wl2.windows).to(be_equal_to(vec![(1, floating_geom),
+                                                    (2, floating_geom),
+                                                    (3, floating_geom),
+                                                    (5, some_geom),
+                                                    (6, some_geom),
+                                                    (4, some_geom)]));
+            expect(wl2.focused_window).to(be_equal_to(Some(4)));
+
+            wm.cycle_focus(Prev);
+
+            let wl3 = wm.get_window_layout();
+            expect(wl3.windows).to(be_equal_to(vec![(1, floating_geom),
+                                                    (2, floating_geom),
+                                                    (5, some_geom),
+                                                    (6, some_geom),
+                                                    (4, some_geom),
+                                                    (3, floating_geom)]));
+            expect(wl3.focused_window).to(be_equal_to(Some(3)));
         }
     }
 }

@@ -1661,7 +1661,7 @@ mod tests {
     }
 
     describe! integration_test {
-        it "should work with the example from the forum" {
+        before_each {
             let screen: Screen = Screen {
                 width: 800,
                 height: 600,
@@ -1724,8 +1724,10 @@ mod tests {
                 height: 20,
             };
 
-            let mut wm: FullscreenWM<MinimisingWM> = FullscreenWM::new(screen);
+            let mut wm = WMName::new(screen);
+        }
 
+        it "should work with the example from the forum" {
             // Let's walk through the steps:
             // windows = []
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![]));
@@ -1779,6 +1781,50 @@ mod tests {
             wm.focus_window(Some(5)).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, slave_geometry), (6, float_geometry), (5, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_sixth), (3, right_middle_sixth), (1, right_lower_sixth), (6, some_geom), (5, floating_geom)]));
+        }
+
+        it "should work with a second example from the forum" {
+            wm.add_window(WindowWithInfo::new_tiled(4, some_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_tiled(5, some_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_tiled(6, some_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_float(1, floating_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_float(2, floating_geom)).unwrap();
+            wm.add_window(WindowWithInfo::new_float(3, floating_geom)).unwrap();
+
+            wm.toggle_floating(4).unwrap();
+            wm.toggle_floating(5).unwrap();
+            wm.toggle_floating(6).unwrap();
+
+            let wl = wm.get_window_layout();
+            expect(wl.windows).to(be_equal_to(vec![(1, floating_geom),
+                                                   (2, floating_geom),
+                                                   (3, floating_geom),
+                                                   (4, some_geom),
+                                                   (5, some_geom),
+                                                   (6, some_geom)]));
+            expect(wl.focused_window).to(be_equal_to(Some(3)));
+
+            wm.cycle_focus(Next);
+
+            let wl2 = wm.get_window_layout();
+            expect(wl2.windows).to(be_equal_to(vec![(1, floating_geom),
+                                                    (2, floating_geom),
+                                                    (3, floating_geom),
+                                                    (5, some_geom),
+                                                    (6, some_geom),
+                                                    (4, some_geom)]));
+            expect(wl2.focused_window).to(be_equal_to(Some(4)));
+
+            wm.cycle_focus(Prev);
+
+            let wl3 = wm.get_window_layout();
+            expect(wl3.windows).to(be_equal_to(vec![(1, floating_geom),
+                                                    (2, floating_geom),
+                                                    (5, some_geom),
+                                                    (6, some_geom),
+                                                    (4, some_geom),
+                                                    (3, floating_geom)]));
+            expect(wl3.focused_window).to(be_equal_to(Some(3)));
         }
     }
 }
