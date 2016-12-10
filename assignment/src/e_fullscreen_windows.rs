@@ -222,10 +222,6 @@ impl<WrappedWM: MinimiseSupport> MinimiseSupport for FullscreenWM<WrappedWM> {
     /// If the passed window is fullscreen, it will first un-fullscreen it.
     fn toggle_minimised(&mut self, window: Window) -> Result<(), Self::Error> {
         if self.is_fullscreen(window) {
-            // let wi = try!(self.get_window_info(window));
-            // try!(self.wrapped_wm.add_window(wi));
-
-            // self.fullscreen_window = None;
             self.un_fullscreen();
         }
 
@@ -1361,7 +1357,7 @@ mod tests {
                     wm.toggle_floating(3).unwrap();
 
                     expect!(wm.is_floating(3)).to(be_true());
-                    expect!(wm.get_window_layout().windows.iter().find(|&&(w, _geom)| w == 3).unwrap().1).to(be_equal_to(right_lower_quarter));
+                    expect!(wm.get_window_layout().windows.iter().find(|&&(w, _geom)| w == 3).unwrap().1).to(be_equal_to(some_geom));
                 }
 
                 it "should be able to toggle floating off for minimised windows" {

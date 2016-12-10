@@ -22,7 +22,8 @@
 //!
 //! COMMENTS:
 //!
-//! A lot of tests were copied and adapted from the b_tiling_wm
+//! A lot of tests were copied and adapted from the b_tiling_wm.
+//! This and following assignments have implemented GapSupport as well (by wrapping around assignment f instead of assignment b and implementing GapSupport if the wrapped WM has GapSupport)
 //!
 
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, GapSize};
@@ -35,6 +36,7 @@ use std::collections::HashMap;
 use error::WMError;
 use error::WMError::*;
 use f_gaps::WMName as TilingWM;
+use fixed_window_manager::RealWindowInfo;
 
 /// Type alias for automated tests
 pub type WMName = FloatingWM;
@@ -393,6 +395,20 @@ impl FloatingWM {
             .and_then(|wi| {
                 try!(self.remove_window(*window));
                 self.add_window(wi)
+            })
+    }
+}
+
+impl RealWindowInfo for FloatingWM {
+    fn get_real_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
+        self.get_window_info(window)
+            .map(|mut info| {
+                if info.float_or_tile == Tile {
+                    // we can unwrap because otherwise get_window_info would be_err
+                    info.geometry = self.infos.get(&window).unwrap().geometry
+                }
+
+                info
             })
     }
 }

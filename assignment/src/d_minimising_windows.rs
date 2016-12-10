@@ -27,6 +27,7 @@ use cplwm_api::wm::{FloatSupport, GapSupport, MinimiseSupport, TilingSupport, Wi
 use std::collections::HashMap;
 
 use c_floating_windows::WMName as FloatWM;
+use fixed_window_manager::RealWindowInfo;
 
 /// Type alias for automated tests
 pub type WMName = MinimisingWM<FloatWM>;
@@ -34,16 +35,17 @@ pub type WMName = MinimisingWM<FloatWM>;
 /// Main struct of the window manager
 /// This WM can minimise windows and uses the WrappedWM for all unminimised windows
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct MinimisingWM<WrappedWM: WindowManager> {
+pub struct MinimisingWM<WrappedWM: RealWindowInfo> {
     /// A vector of minimised windows
     pub minimised_windows: Vec<Window>,
     /// The wrapped window manager that takes care of the unminimised windows
     pub wrapped_wm: WrappedWM,
     /// The window_with_info's for the minimised windows
-    pub infos: HashMap<Window, WindowWithInfo>,
+    /// The first value in the tuple is the last visible info, the second is the real info
+    pub infos: HashMap<Window, (WindowWithInfo, WindowWithInfo)>,
 }
 
-impl<WrappedWM: WindowManager> WindowManager for MinimisingWM<WrappedWM> {
+impl<WrappedWM: RealWindowInfo> WindowManager for MinimisingWM<WrappedWM> {
     /// We use the Error from the WrappedWM as our Error type.
     type Error = WrappedWM::Error;
 
@@ -109,7 +111,7 @@ impl<WrappedWM: WindowManager> WindowManager for MinimisingWM<WrappedWM> {
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
         if self.is_minimised(window) {
             // if the window is minimised, it's part of the infos hashmap
-            Ok(self.infos.get(&window).map(|info| *info).unwrap())
+            Ok(self.infos.get(&window).map(|info| *info).unwrap().0)
         } else {
             self.wrapped_wm.get_window_info(window)
         }
@@ -132,7 +134,7 @@ impl<WrappedWM: WindowManager> WindowManager for MinimisingWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: TilingSupport> TilingSupport for MinimisingWM<WrappedWM> {
+impl<WrappedWM: TilingSupport+RealWindowInfo> TilingSupport for MinimisingWM<WrappedWM> {
     fn get_master_window(&self) -> Option<Window> {
         self.wrapped_wm.get_master_window()
     }
@@ -151,7 +153,7 @@ impl<WrappedWM: TilingSupport> TilingSupport for MinimisingWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: FloatSupport> FloatSupport for MinimisingWM<WrappedWM> {
+impl<WrappedWM: FloatSupport+RealWindowInfo> FloatSupport for MinimisingWM<WrappedWM> {
     fn get_floating_windows(&self) -> Vec<Window> {
         self.wrapped_wm.get_floating_windows()
     }
@@ -171,9 +173,10 @@ impl<WrappedWM: FloatSupport> FloatSupport for MinimisingWM<WrappedWM> {
     fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
         if self.is_minimised(window) {
             // self.infos always contains an entry for minimised windows
-            let mut wi = self.infos.get(&window).unwrap().clone();
+            let mut wi = self.infos.get(&window).unwrap().clone().0;
             wi.geometry = new_geometry;
-            self.infos.insert(window, wi);
+            // Both the wi and the real wi are equal to the new wi value
+            self.infos.insert(window, (wi, wi));
             Ok(())
         } else {
             self.wrapped_wm.set_window_geometry(window, new_geometry)
@@ -181,21 +184,22 @@ impl<WrappedWM: FloatSupport> FloatSupport for MinimisingWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: WindowManager> MinimiseSupport for MinimisingWM<WrappedWM> {
+impl<WrappedWM: RealWindowInfo> MinimiseSupport for MinimisingWM<WrappedWM> {
     fn get_minimised_windows(&self) -> Vec<Window> {
         self.minimised_windows.clone()
     }
     fn toggle_minimised(&mut self, window: Window) -> Result<(), Self::Error> {
         let wi = try!(self.get_window_info(window));
+        let real_wi = try!(self.get_real_window_info(window));
         let was_minimised = self.is_minimised(window);
 
         if was_minimised {
             try!(self.remove_window(window));
-            self.add_window(wi)
+            self.add_window(real_wi)
         } else {
             try!(self.wrapped_wm.remove_window(window));
 
-            self.infos.insert(window, wi);
+            self.infos.insert(window, (wi, real_wi));
             self.minimised_windows.push(window);
             Ok(())
         }
@@ -206,13 +210,23 @@ impl<WrappedWM: WindowManager> MinimiseSupport for MinimisingWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: GapSupport> GapSupport for MinimisingWM<WrappedWM> {
+impl<WrappedWM: GapSupport+RealWindowInfo> GapSupport for MinimisingWM<WrappedWM> {
     fn get_gap(&self) -> GapSize {
         self.wrapped_wm.get_gap()
     }
 
     fn set_gap(&mut self, gapsize: GapSize) {
         self.wrapped_wm.set_gap(gapsize)
+    }
+}
+
+impl<WrappedWM: RealWindowInfo> RealWindowInfo for MinimisingWM<WrappedWM> {
+    fn get_real_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
+        if self.is_minimised(window) {
+            Ok(self.infos.get(&window).map(|info| *info).unwrap().1)
+        } else {
+            self.wrapped_wm.get_real_window_info(window)
+        }
     }
 }
 
@@ -1090,7 +1104,7 @@ mod tests {
                     wm.toggle_floating(3).unwrap();
 
                     expect!(wm.is_floating(3)).to(be_true());
-                    expect!(wm.get_window_layout().windows.iter().find(|&&(w, _geom)| w == 3).unwrap().1).to(be_equal_to(right_lower_quarter));
+                    expect!(wm.get_window_layout().windows.iter().find(|&&(w, _geom)| w == 3).unwrap().1).to(be_equal_to(some_geom));
                 }
 
                 it "should be able to toggle floating off for minimised windows" {
