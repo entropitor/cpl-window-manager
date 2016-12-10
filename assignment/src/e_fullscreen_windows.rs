@@ -24,8 +24,8 @@
 //! A fullscreen window always has the focus and is the only one rendered. Floating windows are not visible above fullscreen windows
 //!
 
-use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
-use cplwm_api::wm::{FloatSupport, FullscreenSupport, MinimiseSupport, TilingSupport, WindowManager};
+use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, GapSize};
+use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager};
 
 use d_minimising_windows::WMName as MinimisingWM;
 
@@ -256,6 +256,16 @@ impl<WrappedWM: WindowManager> FullscreenSupport for FullscreenWM<WrappedWM> {
 
             self.wrapped_wm.remove_window(window)
         }
+    }
+}
+
+impl<WrappedWM: GapSupport> GapSupport for FullscreenWM<WrappedWM> {
+    fn get_gap(&self) -> GapSize {
+        self.wrapped_wm.get_gap()
+    }
+
+    fn set_gap(&mut self, gapsize: GapSize) {
+        self.wrapped_wm.set_gap(gapsize)
     }
 }
 

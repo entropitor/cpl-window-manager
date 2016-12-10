@@ -22,8 +22,8 @@
 //! A lot of tests were copied and adapted from the c_floating_windows
 //!
 
-use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
-use cplwm_api::wm::{FloatSupport, MinimiseSupport, TilingSupport, WindowManager};
+use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, GapSize};
+use cplwm_api::wm::{FloatSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager};
 use std::collections::HashMap;
 
 use c_floating_windows::WMName as FloatWM;
@@ -203,6 +203,16 @@ impl<WrappedWM: WindowManager> MinimiseSupport for MinimisingWM<WrappedWM> {
 
     fn is_minimised(&self, window: Window) -> bool {
         self.infos.contains_key(&window)
+    }
+}
+
+impl<WrappedWM: GapSupport> GapSupport for MinimisingWM<WrappedWM> {
+    fn get_gap(&self) -> GapSize {
+        self.wrapped_wm.get_gap()
+    }
+
+    fn set_gap(&mut self, gapsize: GapSize) {
+        self.wrapped_wm.set_gap(gapsize)
     }
 }
 

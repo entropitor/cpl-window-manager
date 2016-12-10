@@ -25,16 +25,16 @@
 //! A lot of tests were copied and adapted from the b_tiling_wm
 //!
 
-use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
+use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, GapSize};
 use cplwm_api::types::PrevOrNext::*;
 use cplwm_api::types::FloatOrTile;
 pub use cplwm_api::types::FloatOrTile::*;
-use cplwm_api::wm::{FloatSupport, TilingSupport, WindowManager};
+use cplwm_api::wm::{FloatSupport, GapSupport, TilingSupport, WindowManager};
 use std::collections::HashMap;
 
 use error::WMError;
 use error::WMError::*;
-use b_tiling_wm::WMName as TilingWM;
+use f_gaps::WMName as TilingWM;
 
 /// Type alias for automated tests
 pub type WMName = FloatingWM;
@@ -303,6 +303,16 @@ impl FloatSupport for FloatingWM {
         new_wi.map(|wi| {
             self.infos.insert(window, wi);
         })
+    }
+}
+
+impl GapSupport for FloatingWM {
+    fn get_gap(&self) -> GapSize {
+        self.tiling_wm.get_gap()
+    }
+
+    fn set_gap(&mut self, gapsize: GapSize) {
+        self.tiling_wm.set_gap(gapsize)
     }
 }
 
