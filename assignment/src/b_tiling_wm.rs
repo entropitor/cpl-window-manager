@@ -176,7 +176,7 @@ impl<MyLayouter: Layouter> WindowManager for TilingWM<MyLayouter> {
                 window: window,
                 geometry: geom,
                 float_or_tile: Tile,
-                fullscreen: self.windows.len() == 1
+                fullscreen: false
             })
     }
 
@@ -541,7 +541,7 @@ mod tests {
                     window: 1,
                     geometry: screen_geom,
                     float_or_tile: FloatOrTile::Tile,
-                    fullscreen: true,
+                    fullscreen: false,
                 }));
             }
 

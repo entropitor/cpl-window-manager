@@ -907,7 +907,7 @@ mod tests {
                     window: 1,
                     geometry: screen_geom,
                     float_or_tile: FloatOrTile::Tile,
-                    fullscreen: true,
+                    fullscreen: false,
                 }));
             }
 

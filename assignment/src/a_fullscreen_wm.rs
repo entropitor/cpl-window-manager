@@ -127,12 +127,11 @@ impl WindowManager for FullscreenWM {
             // Return error if the window is not managed by us
             .ok_or(UnknownWindow(window))
             // Check if it's in focus
-            .map(|i| self.focused_index.map_or(false, |j| i == j))
-            .map(|is_focused| WindowWithInfo {
+            .map(|_i| WindowWithInfo {
                 window: window,
                 geometry: self.screen.to_geometry(),
                 float_or_tile: Tile,
-                fullscreen: is_focused
+                fullscreen: false
             })
     }
 
@@ -361,7 +360,7 @@ mod tests {
                     window: 2,
                     geometry: screen_geom,
                     float_or_tile: Tile,
-                    fullscreen: true,
+                    fullscreen: false,
                 }));
             }
 
