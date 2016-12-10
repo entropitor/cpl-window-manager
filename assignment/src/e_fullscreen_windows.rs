@@ -28,6 +28,7 @@ use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, Windo
 use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager};
 
 use d_minimising_windows::WMName as MinimisingWM;
+use fixed_window_manager::RealWindowInfo;
 
 /// Type alias for automated tests
 pub type WMName = FullscreenWM<MinimisingWM>;
@@ -35,14 +36,14 @@ pub type WMName = FullscreenWM<MinimisingWM>;
 /// Main struct of the window manager
 /// This WM can make a window fullscreen and uses the WrappedWM for all other windows
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct FullscreenWM<WrappedWM: WindowManager> {
-    /// The WindowWithInfo for the fullscreen window
+pub struct FullscreenWM<WrappedWM: RealWindowInfo> {
+    /// The WindowWithInfo for the fullscreen window (the real one)
     pub fullscreen_window: Option<WindowWithInfo>,
     /// The wrapped window manager that takes care of all the other windows
     pub wrapped_wm: WrappedWM,
 }
 
-impl<WrappedWM: WindowManager> FullscreenWM<WrappedWM> {
+impl<WrappedWM: RealWindowInfo> FullscreenWM<WrappedWM> {
     fn un_fullscreen(&mut self) {
         self.get_fullscreen_window()
             .map(|w| self.toggle_fullscreen(w));
@@ -57,7 +58,7 @@ impl<WrappedWM: WindowManager> FullscreenWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
+impl<WrappedWM: RealWindowInfo> WindowManager for FullscreenWM<WrappedWM> {
     /// We use the Error from the WrappedWM as our Error type.
     type Error = WrappedWM::Error;
 
@@ -167,7 +168,7 @@ impl<WrappedWM: WindowManager> WindowManager for FullscreenWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: TilingSupport> TilingSupport for FullscreenWM<WrappedWM> {
+impl<WrappedWM: TilingSupport+RealWindowInfo> TilingSupport for FullscreenWM<WrappedWM> {
     fn get_master_window(&self) -> Option<Window> {
         self.wrapped_wm.get_master_window()
     }
@@ -187,7 +188,7 @@ impl<WrappedWM: TilingSupport> TilingSupport for FullscreenWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: FloatSupport> FloatSupport for FullscreenWM<WrappedWM> {
+impl<WrappedWM: FloatSupport+RealWindowInfo> FloatSupport for FullscreenWM<WrappedWM> {
     fn get_floating_windows(&self) -> Vec<Window> {
         self.wrapped_wm.get_floating_windows()
     }
@@ -214,7 +215,7 @@ impl<WrappedWM: FloatSupport> FloatSupport for FullscreenWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: MinimiseSupport> MinimiseSupport for FullscreenWM<WrappedWM> {
+impl<WrappedWM: MinimiseSupport+RealWindowInfo> MinimiseSupport for FullscreenWM<WrappedWM> {
     fn get_minimised_windows(&self) -> Vec<Window> {
         self.wrapped_wm.get_minimised_windows()
     }
@@ -233,7 +234,7 @@ impl<WrappedWM: MinimiseSupport> MinimiseSupport for FullscreenWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: WindowManager> FullscreenSupport for FullscreenWM<WrappedWM> {
+impl<WrappedWM: RealWindowInfo> FullscreenSupport for FullscreenWM<WrappedWM> {
     fn get_fullscreen_window(&self) -> Option<Window> {
         self.fullscreen_window
             .map(|info| info.window)
@@ -247,7 +248,7 @@ impl<WrappedWM: WindowManager> FullscreenSupport for FullscreenWM<WrappedWM> {
 
             self.wrapped_wm.add_window(wi)
         } else {
-            let wi = try!(self.wrapped_wm.get_window_info(window));
+            let wi = try!(self.wrapped_wm.get_real_window_info(window));
             self.fullscreen_window = Some(wi);
 
             self.wrapped_wm.remove_window(window)
@@ -255,13 +256,23 @@ impl<WrappedWM: WindowManager> FullscreenSupport for FullscreenWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: GapSupport> GapSupport for FullscreenWM<WrappedWM> {
+impl<WrappedWM: GapSupport+RealWindowInfo> GapSupport for FullscreenWM<WrappedWM> {
     fn get_gap(&self) -> GapSize {
         self.wrapped_wm.get_gap()
     }
 
     fn set_gap(&mut self, gapsize: GapSize) {
         self.wrapped_wm.set_gap(gapsize)
+    }
+}
+
+impl<WrappedWM: RealWindowInfo> RealWindowInfo for FullscreenWM<WrappedWM> {
+    fn get_real_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
+        if self.is_fullscreen(window) {
+            Ok(self.fullscreen_window.unwrap())
+        } else {
+            self.wrapped_wm.get_real_window_info(window)
+        }
     }
 }
 
@@ -1652,6 +1663,23 @@ mod tests {
                                                                               (2, right_lower_quarter),
                                                                               (5, floating_geom)]));
                 }
+            }
+
+            ignore "should keep the layout if toggling minimise before and after" {
+                wm.toggle_fullscreen(2).unwrap();
+
+                expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(2)));
+                expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, screen_geom)]));
+
+                wm.toggle_minimised(2).unwrap();
+
+                expect!(wm.get_fullscreen_window()).to(be_equal_to(None));
+                expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(1, left_half),(3, right_half), (5, floating_geom)]));
+
+                wm.toggle_minimised(2).unwrap();
+
+                expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(2)));
+                expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, screen_geom)]));
             }
         }
     }
