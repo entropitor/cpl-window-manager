@@ -220,13 +220,27 @@ impl<WrappedWM: MinimiseSupport+RealWindowInfo> MinimiseSupport for FullscreenWM
         self.wrapped_wm.get_minimised_windows()
     }
 
-    /// If the passed window is fullscreen, it will first un-fullscreen it.
+    /// If the passed window is fullscreen, it will be unfullscreened but next time it will become fullscreen again
     fn toggle_minimised(&mut self, window: Window) -> Result<(), Self::Error> {
         if self.is_fullscreen(window) {
-            self.un_fullscreen();
+            // We know there is a fullscreen window so we can unwrap
+            let mut wi = self.fullscreen_window.unwrap();
+            self.fullscreen_window = None;
+
+            wi.fullscreen = true;
+
+            try!(self.wrapped_wm.add_window(wi));
         }
 
-        self.wrapped_wm.toggle_minimised(window)
+        // Repeat this code so unminimising fullscreen windows works...
+        if self.is_minimised(window) {
+            let real_wi = try!(self.get_real_window_info(window));
+            try!(self.remove_window(window));
+            self.add_window(real_wi)
+        } else {
+            self.wrapped_wm.toggle_minimised(window)
+        }
+
     }
 
     fn is_minimised(&self, window: Window) -> bool {
@@ -282,6 +296,7 @@ impl<WrappedWM: RealWindowInfo> RealWindowInfo for FullscreenWM<WrappedWM> {
 mod tests {
     pub use super::*;
     pub use d_minimising_windows::WMName as MinimisingWM;
+    pub use fixed_window_manager::RealWindowInfo;
 
     pub use std::os::raw::{c_int, c_uint};
     pub use cplwm_api::wm::*;
@@ -1606,14 +1621,14 @@ mod tests {
                     expect!(wm.is_fullscreen(3)).to(be_false());
                 }
 
-                it "should not restore window as fullscreen if toggle minimised" {
-                    wm.toggle_fullscreen(3).unwrap();
+                // it "should not restore window as fullscreen if toggle minimised" {
+                //     wm.toggle_fullscreen(3).unwrap();
 
-                    wm.toggle_minimised(3).unwrap();
-                    wm.toggle_minimised(3).unwrap();
+                //     wm.toggle_minimised(3).unwrap();
+                //     wm.toggle_minimised(3).unwrap();
 
-                    expect!(wm.is_fullscreen(3)).to(be_false());
-                }
+                //     expect!(wm.is_fullscreen(3)).to(be_false());
+                // }
             }
         }
 
@@ -1665,7 +1680,7 @@ mod tests {
                 }
             }
 
-            ignore "should keep the layout if toggling minimise before and after" {
+            it "should keep the layout if toggling minimise before and after" {
                 wm.toggle_fullscreen(2).unwrap();
 
                 expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(2)));
@@ -1676,6 +1691,7 @@ mod tests {
                 expect!(wm.get_fullscreen_window()).to(be_equal_to(None));
                 expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(1, left_half),(3, right_half), (5, floating_geom)]));
 
+                println!("{}", wm.get_real_window_info(2).unwrap().fullscreen);
                 wm.toggle_minimised(2).unwrap();
 
                 expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(2)));

@@ -238,7 +238,12 @@ impl WindowManager for FloatingWM {
                 self.infos
                     .get(&window)
                     .ok_or(UnknownWindow(window))
-                    .map(|wi| wi.clone())
+                    .map(|wi| WindowWithInfo {
+                        window: wi.window,
+                        geometry: wi.geometry,
+                        float_or_tile: Float,
+                        fullscreen: false,
+                    })
             });
     }
 
@@ -401,15 +406,17 @@ impl FloatingWM {
 
 impl RealWindowInfo for FloatingWM {
     fn get_real_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
-        self.get_window_info(window)
-            .map(|mut info| {
-                if info.float_or_tile == Tile {
-                    // we can unwrap because otherwise get_window_info would be_err
-                    info.geometry = self.infos.get(&window).unwrap().geometry
-                }
-
-                info
-            })
+        self.infos
+            .get(&window)
+            .ok_or(UnknownWindow(window))
+            .map(|wi| {
+                println!("{} {}", window, wi.fullscreen);
+                WindowWithInfo {
+                window: wi.window,
+                geometry: wi.geometry,
+                float_or_tile: if self.floating_windows.contains(&window) {Float} else {Tile},
+                fullscreen: wi.fullscreen,
+                }})
     }
 }
 

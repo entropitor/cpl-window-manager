@@ -188,8 +188,8 @@ impl<WrappedWM: RealWindowInfo> MinimiseSupport for MinimisingWM<WrappedWM> {
     fn get_minimised_windows(&self) -> Vec<Window> {
         self.minimised_windows.clone()
     }
+
     fn toggle_minimised(&mut self, window: Window) -> Result<(), Self::Error> {
-        let wi = try!(self.get_window_info(window));
         let real_wi = try!(self.get_real_window_info(window));
         let was_minimised = self.is_minimised(window);
 
@@ -197,6 +197,8 @@ impl<WrappedWM: RealWindowInfo> MinimiseSupport for MinimisingWM<WrappedWM> {
             try!(self.remove_window(window));
             self.add_window(real_wi)
         } else {
+            let wi = try!(self.get_window_info(window));
+
             try!(self.wrapped_wm.remove_window(window));
 
             self.infos.insert(window, (wi, real_wi));
