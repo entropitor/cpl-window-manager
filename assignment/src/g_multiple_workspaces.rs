@@ -21,7 +21,7 @@
 //!
 //! COMMENTS:
 //!
-//! /
+//! Most methods only operate on the current workspace. swap_with_master will first move the window to the current workspace. (I find it hard to believe it would be used in practice but there is currently no other way to move a window after the window has been added to the WM).
 //!
 
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, WorkspaceIndex, MAX_WORKSPACE_INDEX, GapSize};
@@ -82,10 +82,24 @@ impl<WrappedWM: WindowManager> WorkspaceWM<WrappedWM> {
         &mut self.wrapped_wms[pos]
     }
 
+    /// Gets the WM that manages the given window and switches the focus to it
     fn get_mutable_wm_for_window_and_switch(&mut self, window: Window) -> &mut WrappedWM {
         let pos = self.get_index_for_window(window);
         self.current_workspace = pos;
         &mut self.wrapped_wms[pos]
+    }
+
+    /// Moves the given window to the current workspace
+    fn move_window_to_current_workspace(&mut self, window: Window) -> Result<(), WrappedWM::Error> {
+        let info = try!(self.get_wm_for_window(window)
+            .get_window_info(window));
+
+        try!(self.get_mutable_wm_for_window(window)
+            .remove_window(window));
+
+        let current_wm = self.get_current_mutable_wm();
+
+        current_wm.add_window(info)
     }
 }
 
@@ -178,7 +192,13 @@ impl<WrappedWM: TilingSupport> TilingSupport for WorkspaceWM<WrappedWM> {
             .get_master_window()
     }
 
+    /// If the window is not on the current workspace
+    /// it will move it to this workspace
     fn swap_with_master(&mut self, window: Window) -> Result<(), Self::Error> {
+        if !self.get_current_wm().is_managed(window) {
+            try!(self.move_window_to_current_workspace(window));
+        }
+
         self.get_current_mutable_wm()
             .swap_with_master(window)
     }
