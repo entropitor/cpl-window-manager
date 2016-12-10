@@ -17,230 +17,53 @@
 //! COMMENTS:
 //!
 //! The tests were copied from assignment b except for the geometries
-//! The code was copied from assignment b, except for the get_geom* functions
 //!
 
 use std::os::raw::{c_int, c_uint};
-use cplwm_api::types::{GapSize, Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
-use cplwm_api::types::PrevOrNext::*;
+use cplwm_api::types::{GapSize, Geometry, Screen};
 pub use cplwm_api::types::FloatOrTile::*;
-use cplwm_api::wm::{GapSupport, TilingSupport, WindowManager};
+use cplwm_api::wm::{GapSupport};
 
-use error::WMError;
-use error::WMError::*;
+use layouter::Layouter;
+use layouter::GapSupport as GenericGapSupport;
+use b_tiling_wm::TilingWM;
 
 /// Type alias for automated tests
-pub type WMName = TilingWM;
+pub type WMName = TilingWM<GappedLayouter>;
 
-/// Main struct of the window manager
+/// The struct for a simple tiled layouter with gaps
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct TilingWM {
-    /// A vector of windows, the first one is the master window.
-    pub windows: Vec<Window>,
-    /// The screen that is managed
-    pub screen: Screen,
-    /// The index of the focused window (or None if no window is focussed)
-    pub focused_index: Option<usize>,
+pub struct GappedLayouter {
     /// The size of the gap
     pub gap_size: GapSize,
 }
 
-impl WindowManager for TilingWM {
-    /// We use `WMError` as our `Error` type.
-    type Error = WMError;
-
-    fn new(screen: Screen) -> TilingWM {
-        TilingWM {
-            windows: Vec::new(),
-            screen: screen,
-            focused_index: None,
-            gap_size: 0,
-        }
-    }
-
-    fn get_windows(&self) -> Vec<Window> {
-        self.windows.clone()
-    }
-
-    fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
-        if !self.is_managed(window_with_info.window) {
-            self.windows.push(window_with_info.window);
-            // Focus on this new window
-            self.focused_index = Some(self.windows.len() - 1);
-        }
-
-        Ok(())
-    }
-
-    fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.windows
-            .iter()
-            .position(|w| *w == window)
-            .ok_or(UnknownWindow(window))
-            .map(|i| {
-                self.windows.remove(i);
-
-                // if there is no window left, no window has focus.
-                if self.windows.len() == 0 {
-                    self.focused_index = None;
-                } else if let Some(j) = self.focused_index {
-                    if i <= j {
-                        // Update the index of the focused window to keep the same window in focus
-                        self.cycle_focus(Prev);
-                    }
-                }
-            })
-    }
-
-    fn get_window_layout(&self) -> WindowLayout {
-        if self.windows.len() == 0 {
-            WindowLayout::new()
-        } else {
-            WindowLayout {
-                focused_window: self.get_focused_window(),
-                windows: self.windows
-                    .iter()
-                    .enumerate()
-                    .map(|(i, w)| (*w, self.get_geom(i)))
-                    .collect(),
-            }
-        }
-    }
-
-    fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
-        match window {
-            None => self.focused_index = None,
-            Some(w) => {
-                if !self.is_managed(w) {
-                    return Err(UnknownWindow(w));
-                }
-
-                // Set focused index to the position of the window passed along
-                self.focused_index = self.windows.iter().position(|w2| *w2 == w);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn cycle_focus(&mut self, dir: PrevOrNext) {
-        // If no focused window, set focused_index to 0 (unless there are no windows)
-        // If focused window, cycle the focus
-        self.focused_index = self.focused_index
-            .or_else(|| self.windows.first().map(|_w| 0))
-            .map(|i| self.cycle_index(i, dir));
-    }
-
-    fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
-        self.windows.iter().position(|w| *w == window)
-            // Return error if the window is not managed by us
-            .ok_or(UnknownWindow(window))
-            .map(|i| self.get_geom(i))
-            .map(|geom| WindowWithInfo {
-                window: window,
-                geometry: geom,
-                float_or_tile: Tile,
-                fullscreen: self.windows.len() == 1
-            })
-    }
-
-    fn get_screen(&self) -> Screen {
-        self.screen
-    }
-
-    fn resize_screen(&mut self, screen: Screen) {
-        self.screen = screen;
-    }
-
-    fn get_focused_window(&self) -> Option<Window> {
-        self.focused_index.map(|i| self.windows[i])
-    }
-}
-
-impl TilingSupport for TilingWM {
-    fn get_master_window(&self) -> Option<Window> {
-        self.windows.first().map(|w| *w)
-    }
-
-    fn swap_with_master(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.windows
-            .iter()
-            .position(|w| *w == window)
-            .ok_or(UnknownWindow(window))
-            .map(|pos| {
-                // Swap the master window with the given window
-                self.windows[pos] = self.windows[0];
-                self.windows[0] = window;
-
-                // Set the focus to the new master window
-                self.focused_index = Some(0);
-            })
-    }
-
-    fn swap_windows(&mut self, dir: PrevOrNext) {
-        self.focused_index
-            .map(|pos| {
-                // Swap the focussed window with the next/prev
-                let other_pos = self.cycle_index(pos, dir);
-                let window = self.windows[pos];
-                self.windows[pos] = self.windows[other_pos];
-                self.windows[other_pos] = window;
-
-                // Set the focus to the same window, but the other tile
-                self.focused_index = Some(other_pos);
-            });
-    }
-}
-
-impl GapSupport for TilingWM {
-    fn get_gap(&self) -> GapSize {
-        self.gap_size
-    }
-
-    fn set_gap(&mut self, gapsize: GapSize) {
-        self.gap_size = gapsize;
-    }
-}
-
-impl TilingWM {
-    /// Return the geometry for the window at position i
-    fn get_geom(&self, i: usize) -> Geometry {
-        if i == 0 {
-            // the master window
-            self.get_master_geom()
-        } else {
-            // a slave window
-            self.get_slave_geom(i - 1)
-        }
-    }
-
-    /// Return the geometry for the master window
-    fn get_master_geom(&self) -> Geometry {
+impl Layouter for GappedLayouter {
+    fn get_master_geom(&self, screen: Screen, nb_windows: usize) -> Geometry {
         let gap = self.gap_size as c_int;
 
-        if self.windows.len() > 1 {
+        if nb_windows > 1 {
             // There are slaves
             Geometry {
                 x: gap,
                 y: gap,
-                width: ((self.screen.width - 4 * self.gap_size) / 2) as c_uint,
-                height: (self.screen.height - 2 * self.gap_size),
+                width: ((screen.width - 4 * self.gap_size) / 2) as c_uint,
+                height: (screen.height - 2 * self.gap_size),
             }
         } else {
             Geometry {
                 x: gap,
                 y: gap,
-                width: (self.screen.width - 2 * self.gap_size),
-                height: (self.screen.height - 2 * self.gap_size),
+                width: (screen.width - 2 * self.gap_size),
+                height: (screen.height - 2 * self.gap_size),
             }
         }
     }
 
     /// Return the geometry for the i-th slave
-    fn get_slave_geom(&self, i: usize) -> Geometry {
-        let nn = (self.windows.len() - 1) as c_uint;
+    fn get_slave_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry {
+        let nn = (nb_windows - 1) as c_uint; // number of slaves
         let ii = i as c_uint;
-        let screen = self.screen;
         let gap = self.gap_size as c_int;
         let width = screen.width - 4 * self.gap_size;
         let height = screen.height - 2 * nn * self.gap_size;
@@ -253,12 +76,30 @@ impl TilingWM {
         }
     }
 
-    /// Return the 'next' index in the direction of dir
-    fn cycle_index(&self, i: usize, dir: PrevOrNext) -> usize {
-        match dir {
-            Prev => (i + self.windows.len() - 1) % self.windows.len(),
-            Next => (i + 1) % self.windows.len(),
+    fn new() -> GappedLayouter {
+        GappedLayouter {
+            gap_size: 0,
         }
+    }
+}
+
+impl GenericGapSupport for GappedLayouter {
+    fn get_gap(&self) -> GapSize {
+        self.gap_size
+    }
+
+    fn set_gap(&mut self, gapsize: GapSize) {
+        self.gap_size = gapsize;
+    }
+}
+
+impl<MyLayouter: GenericGapSupport+Layouter> GapSupport for TilingWM<MyLayouter> {
+    fn get_gap(&self) -> GapSize {
+        self.layouter.get_gap()
+    }
+
+    fn set_gap(&mut self, gapsize: GapSize) {
+        self.layouter.set_gap(gapsize)
     }
 }
 
@@ -322,7 +163,7 @@ mod tests {
                 height: 280,
             };
 
-            let mut wm = TilingWM::new(screen);
+            let mut wm: WMName = TilingWM::new(screen);
             wm.set_gap(10);
         }
 

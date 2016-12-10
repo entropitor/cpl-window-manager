@@ -91,3 +91,4 @@ pub mod h_different_tiling_layout;
 
 // Declare additional modules below or declare them in other modules.
 pub mod error;
+pub mod layouter;

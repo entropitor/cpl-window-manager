@@ -27,29 +27,70 @@ use cplwm_api::wm::{TilingSupport, WindowManager};
 use error::WMError;
 use error::WMError::*;
 
+use layouter::Layouter;
+
 /// Type alias for automated tests
-pub type WMName = TilingWM;
+pub type WMName = TilingWM<SimpleLayouter>;
 
 /// Main struct of the window manager
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct TilingWM {
+pub struct TilingWM<MyLayouter: Layouter> {
     /// A vector of windows, the first one is the master window.
     pub windows: Vec<Window>,
     /// The screen that is managed
     pub screen: Screen,
     /// The index of the focused window (or None if no window is focussed)
     pub focused_index: Option<usize>,
+    /// The layouter to use to tile the windows
+    pub layouter: MyLayouter,
 }
 
-impl WindowManager for TilingWM {
+/// The main struct for a simple tiled layout without gaps
+#[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
+pub struct SimpleLayouter;
+
+impl Layouter for SimpleLayouter {
+    fn get_master_geom(&self, screen: Screen, nb_windows: usize) -> Geometry {
+        if nb_windows > 1 {
+            // There are slaves
+            Geometry {
+                x: 0,
+                y: 0,
+                width: (screen.width / 2) as c_uint,
+                height: screen.height,
+            }
+        } else {
+            screen.to_geometry()
+        }
+    }
+
+    fn get_slave_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry {
+        let nn = (nb_windows - 1) as c_uint; // number of slaves
+        let ii = i as c_uint;
+
+        Geometry {
+            x: (screen.width / 2) as c_int,
+            y: ((screen.height / nn) * ii) as c_int,
+            width: screen.width / 2,
+            height: (screen.height / nn) as c_uint,
+        }
+    }
+
+    fn new() -> SimpleLayouter {
+        SimpleLayouter {}
+    }
+}
+
+impl<MyLayouter: Layouter> WindowManager for TilingWM<MyLayouter> {
     /// We use `WMError` as our `Error` type.
     type Error = WMError;
 
-    fn new(screen: Screen) -> TilingWM {
+    fn new(screen: Screen) -> TilingWM<MyLayouter> {
         TilingWM {
             windows: Vec::new(),
             screen: screen,
             focused_index: None,
+            layouter: MyLayouter::new(),
         }
     }
 
@@ -152,7 +193,7 @@ impl WindowManager for TilingWM {
     }
 }
 
-impl TilingSupport for TilingWM {
+impl<MyLayouter: Layouter> TilingSupport for TilingWM<MyLayouter> {
     fn get_master_window(&self) -> Option<Window> {
         self.windows.first().map(|w| *w)
     }
@@ -187,45 +228,10 @@ impl TilingSupport for TilingWM {
     }
 }
 
-impl TilingWM {
+impl<MyLayouter: Layouter> TilingWM<MyLayouter> {
     /// Return the geometry for the window at position i
     fn get_geom(&self, i: usize) -> Geometry {
-        if i == 0 {
-            // the master window
-            self.get_master_geom()
-        } else {
-            // a slave window
-            self.get_slave_geom(i - 1)
-        }
-    }
-
-    /// Return the geometry for the master window
-    fn get_master_geom(&self) -> Geometry {
-        if self.windows.len() > 1 {
-            // There are slaves
-            Geometry {
-                x: 0,
-                y: 0,
-                width: (self.screen.width / 2) as c_uint,
-                height: self.screen.height,
-            }
-        } else {
-            self.screen.to_geometry()
-        }
-    }
-
-    /// Return the geometry for the i-th slave
-    fn get_slave_geom(&self, i: usize) -> Geometry {
-        let nn = (self.windows.len() - 1) as c_uint;
-        let ii = i as c_uint;
-        let screen = self.screen;
-
-        Geometry {
-            x: (screen.width / 2) as c_int,
-            y: ((screen.height / nn) * ii) as c_int,
-            width: screen.width / 2,
-            height: (screen.height / nn) as c_uint,
-        }
+        self.layouter.get_geom(i, self.get_screen(), self.windows.len())
     }
 
     /// Return the 'next' index in the direction of dir
@@ -291,7 +297,7 @@ mod tests {
                 height: screen.height/2,
             };
 
-            let mut wm = TilingWM::new(screen);
+            let mut wm: TilingWM<SimpleLayouter> = TilingWM::new(screen);
         }
 
         it "should have an empty window layout initially" {
