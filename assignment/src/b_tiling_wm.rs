@@ -145,7 +145,9 @@ impl<MyLayouter: Layouter> WindowManager for TilingWM<MyLayouter> {
 
     fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
         match window {
-            None => self.focused_index = None,
+            None => {
+                self.focused_index = None;
+            },
             Some(w) => {
                 if !self.is_managed(w) {
                     return Err(UnknownWindow(w));

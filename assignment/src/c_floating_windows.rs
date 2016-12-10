@@ -123,8 +123,11 @@ impl WindowManager for FloatingWM {
                     } else if let Some(j) = self.focused_index {
                         // A floating window has focus
                         if i <= j {
-                            // Update the index of the focused window to keep the same window in focus
-                            self.cycle_focus(Prev);
+                            // Update the index of the focused window to keep the same window in focus (it's possible that no window is in focus after this)
+                            self.focused_index = self.cycle_index_helper(i, Prev);
+                            // re-order if necessary
+                            let focused_window = self.get_focused_window();
+                            try!(self.focus_window(focused_window));
                         }
                         Ok(())
                     } else {
@@ -164,7 +167,7 @@ impl WindowManager for FloatingWM {
             Some(w) => {
                 if self.tiling_wm.is_managed(w) {
                     self.focused_index = None;
-                    self.tiling_wm.focus_window(Some(w));
+                    self.tiling_wm.focus_window(Some(w))
                 } else if self.is_managed(w) {
                     // w is managed so we can safely unwrap
                     let index = self.stack_order_floating_windows.iter().position(|w2| *w2 == w).unwrap();
@@ -294,8 +297,7 @@ impl FloatSupport for FloatingWM {
             return Err(UnknownWindow(window));
         }
 
-        let current_focused_index = self.focused_index;
-        let current_focused_tile = self.tiling_wm.get_focused_window();
+        let current_focused_window = self.get_focused_window();
 
         let float_or_tile = if self.is_floating(window) {
             Tile
@@ -306,8 +308,18 @@ impl FloatSupport for FloatingWM {
         try!(self.float_or_tile_window(&window, float_or_tile));
 
         // Refocus the old focused window. Necessary according to forum
-        self.focused_index = current_focused_index;
-        self.tiling_wm.focus_window(current_focused_tile)
+        match current_focused_window {
+            None => self.focus_window(None),
+            Some(w) => {
+                if self.tiling_wm.is_managed(w) {
+                    self.focused_index = None;
+                    self.tiling_wm.focus_window(current_focused_window)
+                } else {
+                    self.focused_index = self.floating_windows.iter().position(|w2| *w2 == w);
+                    self.tiling_wm.focus_window(None)
+                }
+            }
+        }
     }
 
     fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
@@ -353,15 +365,15 @@ impl FloatingWM {
 
     /// Return the 'next' index in the direction of dir
     fn cycle_index_helper(&self, i: usize, dir: PrevOrNext) -> Option<usize> {
+        let nb_windows = self.floating_windows.len();
         let is_going_to_wrap = match dir {
             Prev => i == 0,
-            Next => i == self.floating_windows.len() - 1,
+            Next => i == nb_windows - 1,
         };
 
         if is_going_to_wrap {
             None
         } else {
-            let nb_windows = self.get_windows().len();
             Some(match dir {
                 Prev => (i + nb_windows - 1) % nb_windows,
                 Next => (i + 1) % nb_windows,
@@ -1252,6 +1264,7 @@ mod tests {
             wm.toggle_floating(6).unwrap();
             // windows = [(2, master_geometry), (4, slave_geometry), (3, slave_geometry), (1, float_geometry), (5, float_geometry), (6, float_geometry)]
             expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(2, left_half), (4, right_upper_quarter), (3, right_lower_quarter), (1, floating_geom), (5, floating_geom), (6, some_geom)]));
+
 
             // toggle_floating(1)
             wm.toggle_floating(1).unwrap();
