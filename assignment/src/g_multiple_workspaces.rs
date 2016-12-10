@@ -28,6 +28,7 @@ use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, Windo
 use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager};
 
 use e_fullscreen_windows::WMName as FullscreenWM;
+use fixed_window_manager::RealWindowInfo;
 
 /// Type alias for automated tests
 pub type WMName = WorkspaceWM<FullscreenWM>;
@@ -35,14 +36,14 @@ pub type WMName = WorkspaceWM<FullscreenWM>;
 /// Main struct of the window manager
 /// This WM has multiple workspaces. Each workspace uses a different WM
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct WorkspaceWM<WrappedWM: WindowManager> {
+pub struct WorkspaceWM<WrappedWM: RealWindowInfo> {
     /// The index of the current workspace
     pub current_workspace: WorkspaceIndex,
     /// The list of wrapped window managers
     pub wrapped_wms: Vec<WrappedWM>,
 }
 
-impl<WrappedWM: WindowManager> WorkspaceWM<WrappedWM> {
+impl<WrappedWM: RealWindowInfo> WorkspaceWM<WrappedWM> {
     /// Get the wm for the current workspace
     fn get_current_wm(&self) -> &WrappedWM {
         &self.wrapped_wms[self.current_workspace]
@@ -92,7 +93,7 @@ impl<WrappedWM: WindowManager> WorkspaceWM<WrappedWM> {
     /// Moves the given window to the current workspace
     fn move_window_to_current_workspace(&mut self, window: Window) -> Result<(), WrappedWM::Error> {
         let info = try!(self.get_wm_for_window(window)
-            .get_window_info(window));
+            .get_real_window_info(window));
 
         try!(self.get_mutable_wm_for_window(window)
             .remove_window(window));
@@ -103,7 +104,7 @@ impl<WrappedWM: WindowManager> WorkspaceWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: WindowManager> WindowManager for WorkspaceWM<WrappedWM> {
+impl<WrappedWM: RealWindowInfo> WindowManager for WorkspaceWM<WrappedWM> {
     /// We use the Error from the WrappedWM as our Error type.
     type Error = WrappedWM::Error;
 
@@ -186,7 +187,7 @@ impl<WrappedWM: WindowManager> WindowManager for WorkspaceWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: TilingSupport> TilingSupport for WorkspaceWM<WrappedWM> {
+impl<WrappedWM: TilingSupport+RealWindowInfo> TilingSupport for WorkspaceWM<WrappedWM> {
     fn get_master_window(&self) -> Option<Window> {
         self.get_current_wm()
             .get_master_window()
@@ -209,7 +210,7 @@ impl<WrappedWM: TilingSupport> TilingSupport for WorkspaceWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: FloatSupport> FloatSupport for WorkspaceWM<WrappedWM> {
+impl<WrappedWM: FloatSupport+RealWindowInfo> FloatSupport for WorkspaceWM<WrappedWM> {
     fn get_floating_windows(&self) -> Vec<Window> {
         self.get_current_wm()
             .get_floating_windows()
@@ -226,7 +227,7 @@ impl<WrappedWM: FloatSupport> FloatSupport for WorkspaceWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: MinimiseSupport> MinimiseSupport for WorkspaceWM<WrappedWM> {
+impl<WrappedWM: MinimiseSupport+RealWindowInfo> MinimiseSupport for WorkspaceWM<WrappedWM> {
     fn get_minimised_windows(&self) -> Vec<Window> {
         self.get_current_wm()
             .get_minimised_windows()
@@ -238,7 +239,7 @@ impl<WrappedWM: MinimiseSupport> MinimiseSupport for WorkspaceWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: FullscreenSupport> FullscreenSupport for WorkspaceWM<WrappedWM> {
+impl<WrappedWM: FullscreenSupport+RealWindowInfo> FullscreenSupport for WorkspaceWM<WrappedWM> {
     fn get_fullscreen_window(&self) -> Option<Window> {
         self.get_current_wm()
             .get_fullscreen_window()
@@ -250,7 +251,7 @@ impl<WrappedWM: FullscreenSupport> FullscreenSupport for WorkspaceWM<WrappedWM> 
     }
 }
 
-impl<WrappedWM: GapSupport> GapSupport for WorkspaceWM<WrappedWM> {
+impl<WrappedWM: GapSupport+RealWindowInfo> GapSupport for WorkspaceWM<WrappedWM> {
     fn get_gap(&self) -> GapSize {
         self.get_current_wm()
             .get_gap()
