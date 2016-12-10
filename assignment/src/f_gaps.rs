@@ -60,7 +60,6 @@ impl Layouter for GappedLayouter {
         }
     }
 
-    /// Return the geometry for the i-th slave
     fn get_slave_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry {
         let nn = (nb_windows - 1) as c_uint; // number of slaves
         let ii = i as c_uint;

@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use cplwm_api::types::{Geometry, Screen, GapSize};
 
 /// A trait to layout tiling windows
+/// One must implement get_geom OR (get_master_geom AND get_slave_geom)
 pub trait Layouter: Encodable + Decodable + Debug + Clone  {
     /// Return the geometry for the window at position i
     /// in the given screen and with the given number of windows
@@ -19,10 +20,13 @@ pub trait Layouter: Encodable + Decodable + Debug + Clone  {
     }
 
     /// Return the geometry for the master window
-    fn get_master_geom(&self, screen: Screen, nb_windows: usize) -> Geometry;
-
+    fn get_master_geom(&self, screen: Screen, nb_windows: usize) -> Geometry {
+        self.get_geom(0, screen, nb_windows)
+    }
     /// Return the geometry for the i-th slave
-    fn get_slave_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry;
+    fn get_slave_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry {
+        self.get_geom(i + 1, screen, nb_windows)
+    }
 
     /// Create a new instance of the layouter
     fn new() -> Self;
