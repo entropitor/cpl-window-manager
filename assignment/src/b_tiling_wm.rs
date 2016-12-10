@@ -241,6 +241,22 @@ impl<MyLayouter: Layouter> TilingWM<MyLayouter> {
             Next => (i + 1) % self.windows.len(),
         }
     }
+
+    /// Cycle focus but "no window" is also considered a window
+    pub fn cycle_focus_helper(&mut self, dir: PrevOrNext) {
+        let is_going_to_wrap = self.focused_index.map(|i| {
+            match dir {
+                Prev => i == 0,
+                Next => i == self.windows.len() - 1
+            }
+        }).unwrap_or(false);
+
+        if is_going_to_wrap {
+            self.focused_index = None;
+        } else {
+            self.cycle_focus(dir);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -689,7 +705,7 @@ mod tests {
                     wm.add_window(WindowWithInfo::new_tiled(3, some_geom)).unwrap();
                 }
 
-                it "should be able to swap the focussed window with another window in forward direction" {
+                it "should be able to swap the focused window with another window in forward direction" {
                     wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Next);
@@ -701,7 +717,7 @@ mod tests {
                     expect!(wm.get_window_layout().windows).to(be_equal_to(windows));
                 }
 
-                it "should be able to swap the focussed window with another window in backward direction" {
+                it "should be able to swap the focused window with another window in backward direction" {
                     wm.focus_window(Some(2)).unwrap();
 
                     wm.swap_windows(Prev);

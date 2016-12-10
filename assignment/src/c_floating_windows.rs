@@ -48,7 +48,7 @@ pub struct FloatingWM {
     /// A vector of floating windows (in order of visibility)
     pub stack_order_floating_windows: Vec<Window>,
     /// The index of the focused window in the floating_windows vec.
-    /// If the index is larger than the nb of floating windows, the focused window is tiled.
+    /// If the index is none, no window is focused or the focused window is tiled
     pub focused_index: Option<usize>,
     /// The wrapped window manager that takes care of the tiled windows
     pub tiling_wm: TilingWM,
@@ -89,7 +89,7 @@ impl WindowManager for FloatingWM {
                 }
             }
             // Add the window info to the wm
-            self.infos.insert(window_with_info.window.clone(), window_with_info);
+            self.infos.insert(window_with_info.window, window_with_info);
 
             // Focus on this new window
             try!(self.focus_window(Some(window_with_info.window)));
@@ -103,27 +103,7 @@ impl WindowManager for FloatingWM {
         self.infos.remove(&window);
 
         if self.tiling_wm.is_managed(window) {
-            self.tiling_wm
-                .get_windows()
-                .iter()
-                .position(|w| *w == window)
-                .ok_or(UnknownWindow(window))
-                .and_then(|i| {
-                    try!(self.tiling_wm.remove_window(window));
-
-                    // if there is no window left, no window has focus.
-                    if self.get_windows().len() == 0 {
-                        self.focus_window(None)
-                    } else if let Some(j) = self.focused_index {
-                        if self.get_floating_windows().len() + i <= j {
-                            // Update the index of the focused window to keep the same window in focus
-                            self.cycle_focus(Prev);
-                        }
-                        Ok(())
-                    } else {
-                        Ok(())
-                    }
-                })
+            self.tiling_wm.remove_window(window)
         } else {
             self.stack_order_floating_windows
                 .iter()
@@ -141,12 +121,14 @@ impl WindowManager for FloatingWM {
                     if self.get_windows().len() == 0 {
                         self.focus_window(None)
                     } else if let Some(j) = self.focused_index {
+                        // A floating window has focus
                         if i <= j {
                             // Update the index of the focused window to keep the same window in focus
                             self.cycle_focus(Prev);
                         }
                         Ok(())
                     } else {
+                        // A tiled window has focus
                         Ok(())
                     }
                 })
@@ -181,9 +163,8 @@ impl WindowManager for FloatingWM {
             }
             Some(w) => {
                 if self.tiling_wm.is_managed(w) {
-                    let result = self.tiling_wm.focus_window(Some(w));
-                    self.focused_index = self.tiling_wm.focused_index.map(|i| self.floating_windows.len() + i);
-                    result
+                    self.focused_index = None;
+                    self.tiling_wm.focus_window(Some(w));
                 } else if self.is_managed(w) {
                     // w is managed so we can safely unwrap
                     let index = self.stack_order_floating_windows.iter().position(|w2| *w2 == w).unwrap();
@@ -200,23 +181,49 @@ impl WindowManager for FloatingWM {
         }
     }
 
+    /// Assumes cycle_focus for the TilingWM will focus on first window if no window was focused
     fn cycle_focus(&mut self, dir: PrevOrNext) {
         // If no focused window, set focused_index to 0 (unless there are no windows)
         // If focused window, cycle the focus
 
-        self.focused_index = self.focused_index
-            .or_else(|| self.floating_windows.first().map(|_w| 0))
-            .map(|i| self.cycle_index(i, dir));
-        if let Some(i) = self.focused_index {
-            if i >= self.floating_windows.len() {
-                self.tiling_wm.focused_index = Some(i - self.floating_windows.len());
+        if self.get_focused_window().is_none() {
+            if self.floating_windows.len() >= 1 {
+                self.focused_index = Some(0);
+            } else {
+                self.tiling_wm.cycle_focus(dir);
+            }
+        } else {
+            match self.focused_index {
+                None => {
+                    // focus is in the tiling_wm
+                    self.tiling_wm.cycle_focus_helper(dir);
+
+                    if self.tiling_wm.get_focused_window().is_none() {
+                        // if focus "exits" tiling wm
+                        // then cycle focus one more time
+                        self.cycle_focus(dir);
+                    }
+                },
+                Some(i) => {
+                    self.focused_index = self.cycle_index_helper(i, dir);
+                    if self.focused_index.is_none() {
+                        // if focus "exits" floating windows
+                        // try cycling focus in tiling_wm
+                        self.tiling_wm.cycle_focus(dir);
+
+                        if self.tiling_wm.get_focused_window().is_none() {
+                            // if focus "exits" tiling wm
+                            // then cycle focus one more time
+                            self.cycle_focus(dir);
+                        }
+                    }
+                }
             }
         }
 
-        // Call focus_window to shift the order of the windows if necessary
+        // Call focus_window() to reorder the windows if necessary
         let focused_window = self.get_focused_window();
-        // Focused window is managed so we can safely unwrap
-        self.focus_window(focused_window).unwrap();
+        self.focus_window(focused_window).unwrap(); // Focused window is managed so we can safely unwrap
     }
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
@@ -240,11 +247,6 @@ impl WindowManager for FloatingWM {
 
     fn get_focused_window(&self) -> Option<Window> {
         self.focused_index
-            .and_then(|i| if i < self.floating_windows.len() {
-                Some(i)
-            } else {
-                None
-            })
             .map(|i| self.floating_windows[i])
             .or_else(|| self.tiling_wm.get_focused_window())
     }
@@ -273,11 +275,12 @@ impl TilingSupport for FloatingWM {
 
     /// If the focused window is a floating window, it will first be tiled
     fn swap_windows(&mut self, dir: PrevOrNext) {
-        if let Some(i) = self.focused_index {
-            if i >= self.floating_windows.len() {
-                self.tiling_wm.swap_windows(dir)
-            }
+        if self.focused_index.is_some() {
+            // We know the focused window is managed so we can unwrap
+            let focused_window = self.get_focused_window().unwrap();
+            self.toggle_floating(focused_window).unwrap();
         }
+        self.tiling_wm.swap_windows(dir)
     }
 }
 
@@ -292,6 +295,7 @@ impl FloatSupport for FloatingWM {
         }
 
         let current_focused_index = self.focused_index;
+        let current_focused_tile = self.tiling_wm.get_focused_window();
 
         let float_or_tile = if self.is_floating(window) {
             Tile
@@ -303,7 +307,7 @@ impl FloatSupport for FloatingWM {
 
         // Refocus the old focused window. Necessary according to forum
         self.focused_index = current_focused_index;
-        Ok(())
+        self.tiling_wm.focus_window(current_focused_tile)
     }
 
     fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
@@ -348,11 +352,20 @@ impl FloatingWM {
     }
 
     /// Return the 'next' index in the direction of dir
-    fn cycle_index(&self, i: usize, dir: PrevOrNext) -> usize {
-        let nb_windows = self.get_windows().len();
-        match dir {
-            Prev => (i + nb_windows - 1) % nb_windows,
-            Next => (i + 1) % nb_windows,
+    fn cycle_index_helper(&self, i: usize, dir: PrevOrNext) -> Option<usize> {
+        let is_going_to_wrap = match dir {
+            Prev => i == 0,
+            Next => i == self.floating_windows.len() - 1,
+        };
+
+        if is_going_to_wrap {
+            None
+        } else {
+            let nb_windows = self.get_windows().len();
+            Some(match dir {
+                Prev => (i + nb_windows - 1) % nb_windows,
+                Next => (i + 1) % nb_windows,
+            })
         }
     }
 

@@ -48,7 +48,7 @@
 //! why below:
 //!
 //! The crate stainless (used for testing) required a nightly build.
-//! I wanted to write good unit tests and I found stainless to be a good crate to do so.
+//! I wanted to write good unit tests (in BDD style) and I found stainless to be a good crate to do so.
 //! Unfortunately it's not supported yet in the stable version of rust.
 //!
 
@@ -92,3 +92,4 @@ pub mod h_different_tiling_layout;
 // Declare additional modules below or declare them in other modules.
 pub mod error;
 pub mod layouter;
+pub mod fixed_window_manager;
