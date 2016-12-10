@@ -108,6 +108,7 @@ impl<MyLayouter: GenericGapSupport+Layouter> GapSupport for TilingWM<MyLayouter>
 #[allow(unused_variables)]
 mod tests {
     pub use super::*;
+    pub use b_tiling_wm::TilingWM;
 
     pub use std::os::raw::{c_int, c_uint};
     pub use cplwm_api::wm::*;
