@@ -17,17 +17,11 @@
 //!
 //! # Status
 //!
-//! **TODO**: Replace the question mark below with YES, NO, or PARTIAL to
-//! indicate the status of this assignment. If you want to tell something
-//! about this assignment to the grader, e.g., you have a bug you can't fix,
-//! or you want to explain your approach, write it down after the comments
-//! section.
-//!
-//! COMPLETED: ?
+//! COMPLETED: YES
 //!
 //! COMMENTS:
 //!
-//! ...
+//! /
 //!
 
 use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, WorkspaceIndex, MAX_WORKSPACE_INDEX, GapSize};
@@ -222,11 +216,6 @@ impl<WrappedWM: MinimiseSupport> MinimiseSupport for WorkspaceWM<WrappedWM> {
         self.get_current_mutable_wm()
             .toggle_minimised(window)
     }
-
-    // fn is_minimised(&self, window: Window) -> bool {
-    //     self.get_wm_for_window(window)
-    //         .is_minimised(window)
-    // }
 }
 
 impl<WrappedWM: FullscreenSupport> FullscreenSupport for WorkspaceWM<WrappedWM> {
