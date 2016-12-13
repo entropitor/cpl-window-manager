@@ -44,6 +44,7 @@ pub struct FullscreenWM<WrappedWM: RealWindowInfo> {
 }
 
 impl<WrappedWM: RealWindowInfo> FullscreenWM<WrappedWM> {
+    /// This will unfullscreen the fullscreen window.
     fn un_fullscreen(&mut self) {
         self.get_fullscreen_window()
             .map(|w| self.toggle_fullscreen(w));
@@ -51,6 +52,7 @@ impl<WrappedWM: RealWindowInfo> FullscreenWM<WrappedWM> {
         self.fullscreen_window = None;
     }
 
+    /// Returns true if the given window is fullscreen. Will return false if the given window is not managed by this wm
     fn is_fullscreen(&self, window: Window) -> bool {
         self.get_fullscreen_window()
             .map(|w| w == window)
@@ -1691,7 +1693,6 @@ mod tests {
                 expect!(wm.get_fullscreen_window()).to(be_equal_to(None));
                 expect!(wm.get_window_layout().windows).to(be_equal_to(vec![(1, left_half),(3, right_half), (5, floating_geom)]));
 
-                println!("{}", wm.get_real_window_info(2).unwrap().fullscreen);
                 wm.toggle_minimised(2).unwrap();
 
                 expect!(wm.get_fullscreen_window()).to(be_equal_to(Some(2)));
