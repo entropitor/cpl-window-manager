@@ -21,13 +21,14 @@
 //!
 //! COMMENTS:
 //!
-//! Most methods only operate on the current workspace. swap_with_master will first move the window to the current workspace. (I find it hard to believe it would be used in practice but there is currently no other way to move a window after the window has been added to the WM).
+//! Most methods only operate on the current workspace. swap_with_master will first move the window to the current workspace.
+//! (I find it hard to believe it would be used in practice but there is currently no other way to move a window after the window has been added to the WM).
 //!
 //! A lot of tests were copied from e_fullscreen_windows
 //!
 
 use cplwm_api::types::{GapSize, Geometry, MAX_WORKSPACE_INDEX, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, WorkspaceIndex};
-use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager, MultiWorkspaceSupport};
+use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, MultiWorkspaceSupport, TilingSupport, WindowManager};
 
 use e_fullscreen_windows::WMName as FullscreenWM;
 use error::MultiWMError;
