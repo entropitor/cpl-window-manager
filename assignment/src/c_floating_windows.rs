@@ -170,15 +170,16 @@ impl WindowManager for FloatingWM {
                 if self.tiling_wm.is_managed(w) {
                     self.focused_index = None;
                     self.tiling_wm.focus_window(Some(w))
-                } else if self.is_managed(w) {
-                    // w is managed so we can safely unwrap
+                } else if self.is_floating(w) {
+                    // w is floating so we can safely unwrap
                     let index = self.stack_order_floating_windows.iter().position(|w2| *w2 == w).unwrap();
 
                     self.stack_order_floating_windows.remove(index);
                     self.stack_order_floating_windows.push(w);
 
                     self.focused_index = self.floating_windows.iter().position(|w2| *w2 == w);
-                    Ok(())
+
+                    self.tiling_wm.focus_window(None)
                 } else {
                     Err(UnknownWindow(w))
                 }
@@ -187,13 +188,17 @@ impl WindowManager for FloatingWM {
     }
 
     /// Assumes cycle_focus for the TilingWM will focus on first window if no window was focused
+    /// in forward direction and on last window in backward direction
     fn cycle_focus(&mut self, dir: PrevOrNext) {
         // If no focused window, set focused_index to 0 (unless there are no windows)
         // If focused window, cycle the focus
 
         if self.get_focused_window().is_none() {
             if self.floating_windows.len() >= 1 {
-                self.focused_index = Some(0);
+                match dir {
+                    Next => self.focused_index = Some(0),
+                    Prev => self.focused_index = Some(self.floating_windows.len() - 1),
+                }
             } else {
                 self.tiling_wm.cycle_focus(dir);
             }
@@ -740,7 +745,7 @@ mod tests {
                 wm.add_window(WindowWithInfo::new_tiled(4, some_geom)).unwrap();
             }
 
-            it "should cycle in forward direction" {
+            it "should work in forward direction" {
                 wm.focus_window(Some(1)).unwrap();
 
                 wm.cycle_focus(Next);
@@ -752,6 +757,16 @@ mod tests {
                 wm.cycle_focus(Prev);
 
                 expect!(wm.get_focused_window()).to(be_equal_to(Some(2)));
+            }
+
+            it "should cycle in forward direction" {
+                wm.focus_window(Some(4)).unwrap();
+
+                wm.cycle_focus(Next);
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(3)));
+
+                wm.cycle_focus(Next);
+                expect!(wm.get_focused_window()).to(be_equal_to(Some(1)));
             }
 
             it "should cycle in backward direction" {

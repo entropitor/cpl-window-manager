@@ -162,11 +162,23 @@ impl<MyLayouter: Layouter> WindowManager for TilingWM<MyLayouter> {
     }
 
     fn cycle_focus(&mut self, dir: PrevOrNext) {
-        // If no focused window, set focused_index to 0 (unless there are no windows)
         // If focused window, cycle the focus
-        self.focused_index = self.focused_index
-            .or_else(|| self.windows.first().map(|_w| 0))
-            .map(|i| self.cycle_index(i, dir));
+        // If no focused window, set focused_index to 0 (unless there are no windows)
+        self.focused_index = match self.focused_index {
+            None => {
+                if self.windows.len() == 0 {
+                    None
+                } else {
+                    match dir {
+                        Next => Some(0),
+                        Prev => Some(self.windows.len() - 1)
+                    }
+                }
+            }
+            Some(i) => {
+                Some(self.cycle_index(i, dir))
+            }
+        }
     }
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
