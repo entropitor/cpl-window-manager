@@ -19,68 +19,50 @@
 //! The tests were copied from assignment b except for the geometries
 //!
 
-use std::os::raw::{c_int, c_uint};
+use std::os::raw::{c_int};
 use cplwm_api::types::{GapSize, Geometry, Screen};
 pub use cplwm_api::types::FloatOrTile::*;
 use cplwm_api::wm::GapSupport;
 
 use layouter::Layouter;
 use layouter::GapSupport as GenericGapSupport;
-use b_tiling_wm::TilingWM;
+use b_tiling_wm::{TilingWM, SimpleLayouter};
 
 /// Type alias for automated tests
-pub type WMName = TilingWM<GappedLayouter>;
+pub type WMName = TilingWM<GappedLayouter<SimpleLayouter>>;
 
 /// The struct for a simple tiled layouter with gaps
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct GappedLayouter {
+pub struct GappedLayouter<WrappedLayouter: Layouter> {
     /// The size of the gap
     pub gap_size: GapSize,
+    /// The wrapped layouter
+    pub wrapped_layouter: WrappedLayouter
 }
 
-impl Layouter for GappedLayouter {
-    fn get_master_geom(&self, screen: Screen, nb_windows: usize) -> Geometry {
-        let gap = self.gap_size as c_int;
+impl<WrappedLayouter: Layouter> Layouter for GappedLayouter<WrappedLayouter> {
+    fn get_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry {
+        let geom = self.wrapped_layouter.get_geom(i, screen, nb_windows);
 
-        if nb_windows > 1 {
-            // There are slaves
-            Geometry {
-                x: gap,
-                y: gap,
-                width: ((screen.width - 4 * self.gap_size) / 2) as c_uint,
-                height: (screen.height - 2 * self.gap_size),
-            }
-        } else {
-            Geometry {
-                x: gap,
-                y: gap,
-                width: (screen.width - 2 * self.gap_size),
-                height: (screen.height - 2 * self.gap_size),
-            }
-        }
-    }
-
-    fn get_slave_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry {
-        let nn = (nb_windows - 1) as c_uint; // number of slaves
-        let ii = i as c_uint;
-        let gap = self.gap_size as c_int;
-        let width = screen.width - 4 * self.gap_size;
-        let height = screen.height - 2 * nn * self.gap_size;
+        let signed_gap = self.gap_size as c_int;
 
         Geometry {
-            x: gap + (screen.width / 2) as c_int,
-            y: gap + ((screen.height / nn) * ii) as c_int,
-            width: width / 2,
-            height: (height / nn) as c_uint,
+            x: geom.x + signed_gap,
+            y: geom.y + signed_gap,
+            width: geom.width - 2 * self.gap_size,
+            height: geom.height - 2 * self.gap_size,
         }
     }
 
-    fn new() -> GappedLayouter {
-        GappedLayouter { gap_size: 0 }
+    fn new() -> GappedLayouter<WrappedLayouter> {
+        GappedLayouter {
+            gap_size: 0,
+            wrapped_layouter: WrappedLayouter::new()
+        }
     }
 }
 
-impl GenericGapSupport for GappedLayouter {
+impl<WrappedLayouter: Layouter>  GenericGapSupport for GappedLayouter<WrappedLayouter> {
     fn get_gap(&self) -> GapSize {
         self.gap_size
     }
