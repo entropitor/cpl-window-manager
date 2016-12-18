@@ -259,8 +259,10 @@ impl<WrappedWM: RealWindowInfo> FullscreenSupport for FullscreenWM<WrappedWM> {
     fn toggle_fullscreen(&mut self, window: Window) -> Result<(), Self::Error> {
         if self.is_fullscreen(window) {
             // We know there is a fullscreen window so we can unwrap
-            let wi = self.fullscreen_window.unwrap();
+            let mut wi = self.fullscreen_window.unwrap();
             self.fullscreen_window = None;
+
+            wi.fullscreen = false;
 
             self.wrapped_wm.add_window(wi)
         } else {
