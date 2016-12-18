@@ -1,6 +1,6 @@
 //! This module adds some missing methods to properly implement all WindowManagers
 use cplwm_api::types::{Window, WindowWithInfo};
-use cplwm_api::wm::{WindowManager};
+use cplwm_api::wm::WindowManager;
 
 /// The RealWindowInfo allows wrappers to access the interesting WindowWithInfo (not just the tiled one)
 pub trait RealWindowInfo: WindowManager {

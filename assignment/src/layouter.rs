@@ -2,11 +2,11 @@
 use rustc_serialize::{Decodable, Encodable};
 use std::fmt::Debug;
 
-use cplwm_api::types::{Geometry, Screen, GapSize};
+use cplwm_api::types::{GapSize, Geometry, Screen};
 
 /// A trait to layout tiling windows
 /// One must implement get_geom OR (get_master_geom AND get_slave_geom)
-pub trait Layouter: Encodable + Decodable + Debug + Clone  {
+pub trait Layouter: Encodable + Decodable + Debug + Clone {
     /// Return the geometry for the window at position i
     /// in the given screen and with the given number of windows
     fn get_geom(&self, i: usize, screen: Screen, nb_windows: usize) -> Geometry {

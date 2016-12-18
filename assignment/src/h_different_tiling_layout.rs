@@ -30,7 +30,7 @@
 //!
 //! Source layout: http://xmonad.org/xmonad-docs/xmonad-contrib/XMonad-Layout-Spiral.html
 
-use std::os::raw::{c_int};
+use std::os::raw::c_int;
 use cplwm_api::types::{Geometry, Screen};
 pub use cplwm_api::types::FloatOrTile::*;
 
@@ -51,8 +51,7 @@ impl Layouter for SpiralLayouter {
     }
 
     fn new() -> SpiralLayouter {
-        SpiralLayouter {
-        }
+        SpiralLayouter {}
     }
 }
 
@@ -66,22 +65,18 @@ impl SpiralLayouter {
 
         // Calculate split based on which direction of the spiral
         let (geom_for_next_tile, new_rest_screen) = match (nb_windows_tiled) % 4 {
-            0 => {
-                self.split_vertically(rest_screen)
-            },
-            1 => {
-                self.split_horizontally(rest_screen)
-            },
+            0 => self.split_vertically(rest_screen),
+            1 => self.split_horizontally(rest_screen),
             2 => {
                 let (a, b) = self.split_vertically(rest_screen);
                 (b, a)
-            },
+            }
             3 => {
                 let (a, b) = self.split_horizontally(rest_screen);
                 (b, a)
-            },
+            }
             // unreachable branch but Rust doesn't know this
-            _ => { (rest_screen, rest_screen) }
+            _ => (rest_screen, rest_screen),
         };
 
         if nb_windows_tiled == i {
@@ -97,7 +92,8 @@ impl SpiralLayouter {
             y: geom.y,
             width: geom.width / 2,
             height: geom.height,
-        },Geometry {
+        },
+         Geometry {
             x: geom.x + (geom.width / 2) as c_int,
             y: geom.y,
             width: geom.width / 2,
@@ -111,7 +107,8 @@ impl SpiralLayouter {
             y: geom.y,
             width: geom.width,
             height: geom.height / 2,
-        },Geometry {
+        },
+         Geometry {
             x: geom.x,
             y: geom.y + (geom.height / 2) as c_int,
             width: geom.width,

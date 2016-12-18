@@ -147,7 +147,7 @@ impl<MyLayouter: Layouter> WindowManager for TilingWM<MyLayouter> {
         match window {
             None => {
                 self.focused_index = None;
-            },
+            }
             Some(w) => {
                 if !self.is_managed(w) {
                     return Err(UnknownWindow(w));
@@ -246,12 +246,14 @@ impl<MyLayouter: Layouter> TilingWM<MyLayouter> {
 
     /// Cycle focus but "no window" is also considered a window
     pub fn cycle_focus_helper(&mut self, dir: PrevOrNext) {
-        let is_going_to_wrap = self.focused_index.map(|i| {
-            match dir {
-                Prev => i == 0,
-                Next => i == self.windows.len() - 1
-            }
-        }).unwrap_or(false);
+        let is_going_to_wrap = self.focused_index
+            .map(|i| {
+                match dir {
+                    Prev => i == 0,
+                    Next => i == self.windows.len() - 1,
+                }
+            })
+            .unwrap_or(false);
 
         if is_going_to_wrap {
             self.focused_index = None;

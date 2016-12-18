@@ -22,7 +22,7 @@
 use std::os::raw::{c_int, c_uint};
 use cplwm_api::types::{GapSize, Geometry, Screen};
 pub use cplwm_api::types::FloatOrTile::*;
-use cplwm_api::wm::{GapSupport};
+use cplwm_api::wm::GapSupport;
 
 use layouter::Layouter;
 use layouter::GapSupport as GenericGapSupport;
@@ -76,9 +76,7 @@ impl Layouter for GappedLayouter {
     }
 
     fn new() -> GappedLayouter {
-        GappedLayouter {
-            gap_size: 0,
-        }
+        GappedLayouter { gap_size: 0 }
     }
 }
 
@@ -92,7 +90,7 @@ impl GenericGapSupport for GappedLayouter {
     }
 }
 
-impl<MyLayouter: GenericGapSupport+Layouter> GapSupport for TilingWM<MyLayouter> {
+impl<MyLayouter: GenericGapSupport + Layouter> GapSupport for TilingWM<MyLayouter> {
     fn get_gap(&self) -> GapSize {
         self.layouter.get_gap()
     }

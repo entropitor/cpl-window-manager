@@ -22,7 +22,7 @@
 //! A lot of tests were copied and adapted from the c_floating_windows
 //!
 
-use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, GapSize};
+use cplwm_api::types::{GapSize, Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::wm::{FloatSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager};
 use std::collections::HashMap;
 
@@ -134,7 +134,7 @@ impl<WrappedWM: RealWindowInfo> WindowManager for MinimisingWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: TilingSupport+RealWindowInfo> TilingSupport for MinimisingWM<WrappedWM> {
+impl<WrappedWM: TilingSupport + RealWindowInfo> TilingSupport for MinimisingWM<WrappedWM> {
     fn get_master_window(&self) -> Option<Window> {
         self.wrapped_wm.get_master_window()
     }
@@ -153,7 +153,7 @@ impl<WrappedWM: TilingSupport+RealWindowInfo> TilingSupport for MinimisingWM<Wra
     }
 }
 
-impl<WrappedWM: FloatSupport+RealWindowInfo> FloatSupport for MinimisingWM<WrappedWM> {
+impl<WrappedWM: FloatSupport + RealWindowInfo> FloatSupport for MinimisingWM<WrappedWM> {
     fn get_floating_windows(&self) -> Vec<Window> {
         self.wrapped_wm.get_floating_windows()
     }
@@ -212,7 +212,7 @@ impl<WrappedWM: RealWindowInfo> MinimiseSupport for MinimisingWM<WrappedWM> {
     }
 }
 
-impl<WrappedWM: GapSupport+RealWindowInfo> GapSupport for MinimisingWM<WrappedWM> {
+impl<WrappedWM: GapSupport + RealWindowInfo> GapSupport for MinimisingWM<WrappedWM> {
     fn get_gap(&self) -> GapSize {
         self.wrapped_wm.get_gap()
     }

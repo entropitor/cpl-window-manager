@@ -26,7 +26,7 @@
 //! This and following assignments have implemented GapSupport as well (by wrapping around assignment f instead of assignment b and implementing GapSupport if the wrapped WM has GapSupport)
 //!
 
-use cplwm_api::types::{Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, GapSize};
+use cplwm_api::types::{GapSize, Geometry, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo};
 use cplwm_api::types::PrevOrNext::*;
 use cplwm_api::types::FloatOrTile;
 pub use cplwm_api::types::FloatOrTile::*;
@@ -208,7 +208,7 @@ impl WindowManager for FloatingWM {
                         // then cycle focus one more time
                         self.cycle_focus(dir);
                     }
-                },
+                }
                 Some(i) => {
                     self.focused_index = self.cycle_index_helper(i, dir);
                     if self.focused_index.is_none() {
@@ -238,11 +238,13 @@ impl WindowManager for FloatingWM {
                 self.infos
                     .get(&window)
                     .ok_or(UnknownWindow(window))
-                    .map(|wi| WindowWithInfo {
-                        window: wi.window,
-                        geometry: wi.geometry,
-                        float_or_tile: Float,
-                        fullscreen: false,
+                    .map(|wi| {
+                        WindowWithInfo {
+                            window: wi.window,
+                            geometry: wi.geometry,
+                            float_or_tile: Float,
+                            fullscreen: false,
+                        }
                     })
             });
     }
@@ -412,11 +414,16 @@ impl RealWindowInfo for FloatingWM {
             .map(|wi| {
                 println!("{} {}", window, wi.fullscreen);
                 WindowWithInfo {
-                window: wi.window,
-                geometry: wi.geometry,
-                float_or_tile: if self.floating_windows.contains(&window) {Float} else {Tile},
-                fullscreen: wi.fullscreen,
-                }})
+                    window: wi.window,
+                    geometry: wi.geometry,
+                    float_or_tile: if self.floating_windows.contains(&window) {
+                        Float
+                    } else {
+                        Tile
+                    },
+                    fullscreen: wi.fullscreen,
+                }
+            })
     }
 }
 
