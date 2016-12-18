@@ -27,9 +27,11 @@
 //!
 
 use cplwm_api::types::{GapSize, Geometry, MAX_WORKSPACE_INDEX, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, WorkspaceIndex};
-use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager};
+use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, TilingSupport, WindowManager, MultiWorkspaceSupport};
 
 use e_fullscreen_windows::WMName as FullscreenWM;
+use error::MultiWMError;
+use error::MultiWMError::*;
 use fixed_window_manager::RealWindowInfo;
 
 /// Type alias for automated tests
@@ -108,7 +110,7 @@ impl<WrappedWM: RealWindowInfo> WorkspaceWM<WrappedWM> {
 
 impl<WrappedWM: RealWindowInfo> WindowManager for WorkspaceWM<WrappedWM> {
     /// We use the Error from the WrappedWM as our Error type.
-    type Error = WrappedWM::Error;
+    type Error = MultiWMError<WrappedWM::Error>;
 
     fn new(screen: Screen) -> WorkspaceWM<WrappedWM> {
         WorkspaceWM {
@@ -129,13 +131,13 @@ impl<WrappedWM: RealWindowInfo> WindowManager for WorkspaceWM<WrappedWM> {
     }
 
     fn add_window(&mut self, window_with_info: WindowWithInfo) -> Result<(), Self::Error> {
-        self.get_current_mutable_wm()
-            .add_window(window_with_info)
+        Ok(self.get_current_mutable_wm()
+            .add_window(window_with_info)?)
     }
 
     fn remove_window(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.get_mutable_wm_for_window(window)
-            .remove_window(window)
+        Ok(self.get_mutable_wm_for_window(window)
+            .remove_window(window)?)
     }
 
     fn get_window_layout(&self) -> WindowLayout {
@@ -145,13 +147,13 @@ impl<WrappedWM: RealWindowInfo> WindowManager for WorkspaceWM<WrappedWM> {
 
     /// Will switch workspace if the window is not in the current workspace
     fn focus_window(&mut self, window: Option<Window>) -> Result<(), Self::Error> {
-        match window {
+        Ok(match window {
             None => self.get_current_mutable_wm().focus_window(window),
             Some(w) => {
                 self.get_mutable_wm_for_window_and_switch(w)
                     .focus_window(window)
             }
-        }
+        }?)
     }
 
     fn cycle_focus(&mut self, dir: PrevOrNext) {
@@ -160,8 +162,8 @@ impl<WrappedWM: RealWindowInfo> WindowManager for WorkspaceWM<WrappedWM> {
     }
 
     fn get_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
-        self.get_wm_for_window(window)
-            .get_window_info(window)
+        Ok(self.get_wm_for_window(window)
+            .get_window_info(window)?)
     }
 
     fn get_screen(&self) -> Screen {
@@ -200,8 +202,8 @@ impl<WrappedWM: TilingSupport + RealWindowInfo> TilingSupport for WorkspaceWM<Wr
             try!(self.move_window_to_current_workspace(window));
         }
 
-        self.get_current_mutable_wm()
-            .swap_with_master(window)
+        Ok(self.get_current_mutable_wm()
+            .swap_with_master(window)?)
     }
 
     fn swap_windows(&mut self, dir: PrevOrNext) {
@@ -217,13 +219,13 @@ impl<WrappedWM: FloatSupport + RealWindowInfo> FloatSupport for WorkspaceWM<Wrap
     }
 
     fn toggle_floating(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.get_current_mutable_wm()
-            .toggle_floating(window)
+        Ok(self.get_current_mutable_wm()
+            .toggle_floating(window)?)
     }
 
     fn set_window_geometry(&mut self, window: Window, new_geometry: Geometry) -> Result<(), Self::Error> {
-        self.get_mutable_wm_for_window(window)
-            .set_window_geometry(window, new_geometry)
+        Ok(self.get_mutable_wm_for_window(window)
+            .set_window_geometry(window, new_geometry)?)
     }
 }
 
@@ -234,8 +236,8 @@ impl<WrappedWM: MinimiseSupport + RealWindowInfo> MinimiseSupport for WorkspaceW
     }
 
     fn toggle_minimised(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.get_current_mutable_wm()
-            .toggle_minimised(window)
+        Ok(self.get_current_mutable_wm()
+            .toggle_minimised(window)?)
     }
 }
 
@@ -246,8 +248,8 @@ impl<WrappedWM: FullscreenSupport + RealWindowInfo> FullscreenSupport for Worksp
     }
 
     fn toggle_fullscreen(&mut self, window: Window) -> Result<(), Self::Error> {
-        self.get_mutable_wm_for_window_and_switch(window)
-            .toggle_fullscreen(window)
+        Ok(self.get_mutable_wm_for_window_and_switch(window)
+            .toggle_fullscreen(window)?)
     }
 }
 
@@ -261,6 +263,48 @@ impl<WrappedWM: GapSupport + RealWindowInfo> GapSupport for WorkspaceWM<WrappedW
         let ref mut wms = self.wrapped_wms;
         for wm in wms {
             wm.set_gap(gap_size)
+        }
+    }
+}
+
+impl<WrappedWM: RealWindowInfo> MultiWorkspaceSupport<WrappedWM> for WorkspaceWM<WrappedWM> {
+    fn get_current_workspace_index(&self) -> WorkspaceIndex {
+        self.current_workspace
+    }
+
+    fn get_workspace(&self, index: WorkspaceIndex) -> Result<&WrappedWM, Self::Error> {
+        // No test for index < 0 because of type limits and warnings should be avoided
+        if index > MAX_WORKSPACE_INDEX {
+            Err(UnknownWorkspace(index))
+        } else {
+            Ok(&self.wrapped_wms[index])
+        }
+    }
+
+    fn get_workspace_mut(&mut self, index: WorkspaceIndex) -> Result<&mut WrappedWM, Self::Error> {
+        if index > MAX_WORKSPACE_INDEX {
+            Err(UnknownWorkspace(index))
+        } else {
+            Ok(&mut self.wrapped_wms[index])
+        }
+    }
+
+    /// Switch to the workspace at the given index.
+    ///
+    /// If `index == get_current_workspace_index()`, do nothing.
+    ///
+    /// **Invariant**: the window layout after switching to another workspace
+    /// and then switching back to the original workspace should be the same
+    /// as before.
+    ///
+    /// This function *should* return an appropriate error when `0 <= index <=
+    /// MAX_WORKSPACE_INDEX` is not true.
+    fn switch_workspace(&mut self, index: WorkspaceIndex) -> Result<(), Self::Error> {
+        if index > MAX_WORKSPACE_INDEX {
+            Err(UnknownWorkspace(index))
+        } else {
+            self.current_workspace = index;
+            Ok(())
         }
     }
 }
