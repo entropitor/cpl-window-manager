@@ -47,8 +47,8 @@
 //! If you are using a nightly as opposed to a stable version of Rust, explain
 //! why below:
 //!
-//! The crate stainless (used for testing) required a nightly build.
-//! I wanted to write good unit tests (in BDD style) and I found stainless to be a good crate to do so.
+//! The crates stainless and expectest (used for testing) required a nightly build.
+//! I wanted to write good unit tests (in BDD style) and I found stainless and expectest to be good crates to do so.
 //! Unfortunately it's not supported yet in the stable version of rust.
 //!
 

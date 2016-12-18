@@ -19,14 +19,14 @@
 //! The tests were copied from assignment b except for the geometries
 //!
 
-use std::os::raw::{c_int};
+use std::os::raw::c_int;
 use cplwm_api::types::{GapSize, Geometry, Screen};
 pub use cplwm_api::types::FloatOrTile::*;
 use cplwm_api::wm::GapSupport;
 
 use layouter::Layouter;
 use layouter::GapSupport as GenericGapSupport;
-use b_tiling_wm::{TilingWM, SimpleLayouter};
+use b_tiling_wm::{SimpleLayouter, TilingWM};
 
 /// Type alias for automated tests
 pub type WMName = TilingWM<GappedLayouter<SimpleLayouter>>;
@@ -37,7 +37,7 @@ pub struct GappedLayouter<WrappedLayouter: Layouter> {
     /// The size of the gap
     pub gap_size: GapSize,
     /// The wrapped layouter
-    pub wrapped_layouter: WrappedLayouter
+    pub wrapped_layouter: WrappedLayouter,
 }
 
 impl<WrappedLayouter: Layouter> Layouter for GappedLayouter<WrappedLayouter> {
@@ -57,12 +57,12 @@ impl<WrappedLayouter: Layouter> Layouter for GappedLayouter<WrappedLayouter> {
     fn new() -> GappedLayouter<WrappedLayouter> {
         GappedLayouter {
             gap_size: 0,
-            wrapped_layouter: WrappedLayouter::new()
+            wrapped_layouter: WrappedLayouter::new(),
         }
     }
 }
 
-impl<WrappedLayouter: Layouter>  GenericGapSupport for GappedLayouter<WrappedLayouter> {
+impl<WrappedLayouter: Layouter> GenericGapSupport for GappedLayouter<WrappedLayouter> {
     fn get_gap(&self) -> GapSize {
         self.gap_size
     }
