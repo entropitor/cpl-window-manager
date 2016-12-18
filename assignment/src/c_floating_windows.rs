@@ -35,16 +35,19 @@ use std::collections::HashMap;
 
 use error::WMError;
 use error::WMError::*;
-use f_gaps::WMName as TilingWM;
+use b_tiling_wm::{SimpleLayouter, TilingWM};
+use f_gaps::GappedLayouter;
+use layouter::Layouter;
+use layouter::GapSupport as GenericGapSupport;
 use fixed_window_manager::RealWindowInfo;
 
 /// Type alias for automated tests
-pub type WMName = FloatingWM;
+pub type WMName = FloatingWM<GappedLayouter<SimpleLayouter>>;
 
 /// Main struct of the window manager
 /// This WM can float or tile windows
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
-pub struct FloatingWM {
+pub struct FloatingWM<MyLayouter: Layouter> {
     /// A vector of floating windows (in order of adding them)
     pub floating_windows: Vec<Window>,
     /// A vector of floating windows (in order of visibility)
@@ -53,16 +56,16 @@ pub struct FloatingWM {
     /// If the index is none, no window is focused or the focused window is tiled
     pub focused_index: Option<usize>,
     /// The wrapped window manager that takes care of the tiled windows
-    pub tiling_wm: TilingWM,
+    pub tiling_wm: TilingWM<MyLayouter>,
     /// The window_with_info's for the managed windows
     pub infos: HashMap<Window, WindowWithInfo>,
 }
 
-impl WindowManager for FloatingWM {
+impl<MyLayouter: Layouter> WindowManager for FloatingWM<MyLayouter> {
     /// We use `WMError` as our `Error` type.
     type Error = WMError;
 
-    fn new(screen: Screen) -> FloatingWM {
+    fn new(screen: Screen) -> FloatingWM<MyLayouter> {
         FloatingWM {
             floating_windows: Vec::new(),
             stack_order_floating_windows: Vec::new(),
@@ -273,7 +276,7 @@ impl WindowManager for FloatingWM {
     }
 }
 
-impl TilingSupport for FloatingWM {
+impl<MyLayouter: Layouter> TilingSupport for FloatingWM<MyLayouter> {
     fn get_master_window(&self) -> Option<Window> {
         self.tiling_wm.get_master_window()
     }
@@ -301,7 +304,7 @@ impl TilingSupport for FloatingWM {
     }
 }
 
-impl FloatSupport for FloatingWM {
+impl<MyLayouter: Layouter> FloatSupport for FloatingWM<MyLayouter> {
     fn get_floating_windows(&self) -> Vec<Window> {
         self.floating_windows.clone()
     }
@@ -356,7 +359,7 @@ impl FloatSupport for FloatingWM {
     }
 }
 
-impl GapSupport for FloatingWM {
+impl<MyLayouter: Layouter + GenericGapSupport> GapSupport for FloatingWM<MyLayouter> {
     fn get_gap(&self) -> GapSize {
         self.tiling_wm.get_gap()
     }
@@ -366,7 +369,7 @@ impl GapSupport for FloatingWM {
     }
 }
 
-impl FloatingWM {
+impl<MyLayouter: Layouter> FloatingWM<MyLayouter> {
     /// Get the requested geometry for this window
     /// Panics if the window is not in the managed windows
     fn get_geom(&self, window: &Window) -> Geometry {
@@ -411,7 +414,7 @@ impl FloatingWM {
     }
 }
 
-impl RealWindowInfo for FloatingWM {
+impl<MyLayouter: Layouter> RealWindowInfo for FloatingWM<MyLayouter> {
     fn get_real_window_info(&self, window: Window) -> Result<WindowWithInfo, Self::Error> {
         self.infos
             .get(&window)
@@ -493,7 +496,7 @@ mod tests {
                 height: 20,
             };
 
-            let mut wm = FloatingWM::new(screen);
+            let mut wm = WMName::new(screen);
         }
 
         it "should have an empty window layout initially" {
@@ -1262,7 +1265,7 @@ mod tests {
                 height: 20,
             };
 
-            let mut wm = FloatingWM::new(screen);
+            let mut wm = WMName::new(screen);
         }
 
         it "should work with the example from the forum" {

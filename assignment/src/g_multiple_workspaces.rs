@@ -26,6 +26,20 @@
 //!
 //! A lot of tests were copied from e_fullscreen_windows
 //!
+//!
+//! We can also allow a different tiling layout by taking a different set of wrappers:
+//! (See how we get GapSupport for free because of how it's implemented)
+//! ```
+//! use cplwm_assignment::g_multiple_workspaces::{WorkspaceWM};
+//! use cplwm_assignment::e_fullscreen_windows::{FullscreenWM as FullScreen};
+//! use cplwm_assignment::d_minimising_windows::{MinimisingWM as Minimising};
+//! use cplwm_assignment::c_floating_windows::{FloatingWM as Floating};
+//! use cplwm_assignment::h_different_tiling_layout::{SpiralLayouter};
+//! use cplwm_assignment::f_gaps::{GappedLayouter};
+//! pub type WM = WorkspaceWM<FullScreen<Minimising<Floating<GappedLayouter<SpiralLayouter>>>>>;
+//! ```
+//!
+//!
 
 use cplwm_api::types::{GapSize, Geometry, MAX_WORKSPACE_INDEX, PrevOrNext, Screen, Window, WindowLayout, WindowWithInfo, WorkspaceIndex};
 use cplwm_api::wm::{FloatSupport, FullscreenSupport, GapSupport, MinimiseSupport, MultiWorkspaceSupport, TilingSupport, WindowManager};
@@ -110,7 +124,8 @@ impl<WrappedWM: RealWindowInfo> WorkspaceWM<WrappedWM> {
 }
 
 impl<WrappedWM: RealWindowInfo> WindowManager for WorkspaceWM<WrappedWM> {
-    /// We use the Error from the WrappedWM as our Error type.
+    /// We use a wrapper around the Error from the WrappedWM as our Error type
+    /// This way we can also have an error for workspace index out of bounds
     type Error = MultiWMError<WrappedWM::Error>;
 
     fn new(screen: Screen) -> WorkspaceWM<WrappedWM> {
