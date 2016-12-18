@@ -131,7 +131,7 @@ impl<WrappedWM: RealWindowInfo> WindowManager for WorkspaceWM<WrappedWM> {
     fn new(screen: Screen) -> WorkspaceWM<WrappedWM> {
         WorkspaceWM {
             current_workspace: 0,
-            wrapped_wms: (0..(MAX_WORKSPACE_INDEX+1)).map(|_| WrappedWM::new(screen)).collect(),
+            wrapped_wms: (0..(MAX_WORKSPACE_INDEX + 1)).map(|_| WrappedWM::new(screen)).collect(),
         }
     }
 

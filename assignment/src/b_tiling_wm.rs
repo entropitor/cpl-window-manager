@@ -171,13 +171,11 @@ impl<MyLayouter: Layouter> WindowManager for TilingWM<MyLayouter> {
                 } else {
                     match dir {
                         Next => Some(0),
-                        Prev => Some(self.windows.len() - 1)
+                        Prev => Some(self.windows.len() - 1),
                     }
                 }
             }
-            Some(i) => {
-                Some(self.cycle_index(i, dir))
-            }
+            Some(i) => Some(self.cycle_index(i, dir)),
         }
     }
 
